@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamJam - Unified Pythonic Web Development</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 20px 0;
+            text-align: center;
+        }
+        section {
+            padding: 40px 5%;
+        }
+        h1, h2 {
+            margin-top: 0;
+        }
+        a {
+            color: #0077cc;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        /* Code block styling */
+        pre {
+            background-color: #e8e8e8;
+            padding: 15px;
+            overflow-x: auto;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+        code {
+            font-family: 'Inter', monospace;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>StreamJam</h1>
+    <p>Unifying frontend and backend into one Pythonic experience.</p>
+</header>
+
+<section>
+    <h2>Welcome to StreamJam</h2>
+    <p>
+        StreamJam allows developers to craft both the frontend and backend of web applications using just Python. Inspired by the reactivity of modern frameworks and the real-time capabilities of today's best tools, StreamJam offers a streamlined approach to web development.
+    </p>
+    <p>
+        Dive into our <a href="#">documentation</a> or explore some <a href="#">sample projects</a> to get started.
+    </p>
+</section>
+
+<section>
+    <h2>Sample Code</h2>
+    <p>Here's a simple countdown timer using StreamJam:</p>
+    <pre><code>from streamjam import pie
+
+template = """
+&lt;div class="countdown-timer"&gt;
+    &lt;h1&gt;{title}&lt;/h1&gt;
+    &lt;p&gt;Time left: {time_left} seconds&lt;/p&gt;
+    &lt;button onclick={start}&gt;Start&lt;/button&gt;
+    &lt;button onclick={stop}&gt;Stop&lt;/button&gt;
+&lt;/div&gt;
+"""
+
+class Component:
+    title: pie[str] = "New Timer"
+    time_left: pie[int] = 10
+    interval = None
+
+    def start(self):
+        self.interval = setInterval(self.tick, 1000)
+
+    def tick(self):
+        if self.time_left &gt; 0:
+            self.time_left -= 1
+        else:
+            self.stop()
+
+    def stop(self):
+        clearInterval(self.interval)
+        self.interval = None</code></pre>
+</section>
+</body>
+</html>

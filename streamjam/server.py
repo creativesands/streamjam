@@ -30,6 +30,7 @@ class CounterComponent(StreamJamComponent):
         }
 
         self._count = 0
+        self._offset = 1
 
     @property
     def count(self):
@@ -38,10 +39,19 @@ class CounterComponent(StreamJamComponent):
     @count.setter
     def count(self, value):
         self._count = value
-        self._client.set_store(self._id, 'count', self._count)
+        self._client.update_store(self._id, 'count', self._count)
+
+    @property
+    def offset(self):
+        return self._offset
+
+    @offset.setter
+    def offset(self, value):
+        self._offset = value
+        self._client.update_store(self._id, 'offset', self._offset)
 
     async def inc(self):
-        for i in range(10):
+        for i in range(self.offset):
             await asyncio.sleep(0.1)
             self.count += 1
         print('inc', self.count)
@@ -83,8 +93,11 @@ class StreamJamClientHandler:
         comp_class = component_class_map[comp_type]
         self.components[comp_id] = comp_class(comp_id, self)
 
-    def set_store(self, comp_id, store_name, value):
+    def update_store(self, comp_id, store_name, value):
         self.send_msg(Message(('store-value', comp_id, store_name), value))
+
+    def set_store(self, comp_id, store_name, value):
+        setattr(self.components[comp_id], store_name, value)
 
     async def exec_rpc(self, req_id, comp_id, rpc_name, args):
         result = await self.components[comp_id].__exec_rpc__(rpc_name, args)
@@ -111,6 +124,11 @@ class StreamJamClientHandler:
                 elif topic == 'exec-rpc':
                     comp_id, rpc_name, args = content
                     asyncio.create_task(self.exec_rpc(req_id, comp_id, rpc_name, args))
+
+                elif topic == 'store-set':
+                    comp_id, store_name, value = content
+                    self.set_store(comp_id, store_name, value)
+
         except Exception as e:
             print(e)
         finally:

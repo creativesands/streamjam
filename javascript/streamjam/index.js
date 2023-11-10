@@ -3,14 +3,15 @@ import { writable } from "svelte/store"
 export const ID = () => '_' + Math.random().toString(36).substring(2, 9);
 
 class Component {
-    constructor(id, type, client) {
+    constructor(parentId, id, type, kwargs, client) {
+        this.parentId = parentId
         this.id = id
         this.type = type
         this.client = client
         this.stores = {}
         this.rpcs = {}
 
-        this.client.wsSend('add-component', [this.type, this.id])
+        this.client.wsSend('add-component', [this.parentId, this.id, this.type, kwargs])
     }
 
     newStore(storeName, initialValue=null) {
@@ -122,8 +123,8 @@ export class StreamJamClient {
         })
     }
 
-    newComponent(id, type) {
-        const component = new Component(id, type, this)
+    newComponent(parentId, id, type, kwargs) {
+        const component = new Component(parentId, id, type, kwargs, this)
         this.components[id] = component
         return component
     }

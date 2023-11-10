@@ -10,8 +10,9 @@ from dataclasses import dataclass
 """
 
 
-class StreamJamComponent:
-    def __init__(self, _id, _client: 'StreamJamClientHandler'):
+class Component:
+    def __init__(self, _parent_id, _id, _client: 'ClientHandler', **kwargs):
+        self._parent_id = _parent_id
         self._id = _id
         self._client = _client
         self.__rpcs__: tp.Dict[str, tp.Callable] = {}
@@ -20,17 +21,17 @@ class StreamJamComponent:
         ...
 
 
-class CounterComponent(StreamJamComponent):
-    def __init__(self, _id, _client: 'StreamJamClientHandler'):
-        super().__init__(_id, _client)
+class CounterComponent(Component):
+    def __init__(self, _parent_id, _id, _client: 'ClientHandler', count=0, offset=1):
+        super().__init__(_parent_id, _id, _client)
 
         self.__rpcs__: tp.Dict[str, tp.Callable] = {
             'inc': self.inc,
             'dec': self.dec
         }
 
-        self._count = 0
-        self._offset = 1
+        self._count = count
+        self._offset = offset
 
     @property
     def count(self):
@@ -57,14 +58,16 @@ class CounterComponent(StreamJamComponent):
         print('inc', self.count)
 
     async def dec(self):
-        self.count -= 1
+        for i in range(self.offset):
+            await asyncio.sleep(0.1)
+            self.count -= 1
         print('dec', self.count)
 
     async def __exec_rpc__(self, rpc_name, args):
         await self.__rpcs__.get(rpc_name)(*args)
 
 
-component_class_map: tp.Dict[str, tp.Type[StreamJamComponent]] = {
+component_class_map: tp.Dict[str, tp.Type[Component]] = {
     'Counter': CounterComponent
 }
 
@@ -81,23 +84,24 @@ class Message:
         return json.dumps((self.req_id, self.topic, self.content))
 
 
-class StreamJamClientHandler:
+class ClientHandler:
     def __init__(self, ws):
         self.ws = ws
         self.id = self.ws.path
-        self.components: tp.Dict[str, StreamJamComponent] = {}
+        self.components: tp.Dict[str, Component] = {}
         self.msg_queue = asyncio.Queue()
         asyncio.create_task(self.msg_sender())
 
-    def add_component(self, comp_type, comp_id):
+    def add_component(self, parent_id, comp_id, comp_type, kwargs):
         comp_class = component_class_map[comp_type]
-        self.components[comp_id] = comp_class(comp_id, self)
+        self.components[comp_id] = comp_class(_parent_id=parent_id, _id=comp_id, _client=self, **kwargs)
 
     def update_store(self, comp_id, store_name, value):
         self.send_msg(Message(('store-value', comp_id, store_name), value))
 
     def set_store(self, comp_id, store_name, value):
-        setattr(self.components[comp_id], store_name, value)
+        # updating store shadow var to avoid calling setter and sending updates back to client
+        setattr(self.components[comp_id], f'_{store_name}', value)
 
     async def exec_rpc(self, req_id, comp_id, rpc_name, args):
         result = await self.components[comp_id].__exec_rpc__(rpc_name, args)
@@ -118,8 +122,8 @@ class StreamJamClientHandler:
                 req_id, topic, content = json.loads(msg)
 
                 if topic == 'add-component':
-                    comp_type, comp_id = content
-                    self.add_component(comp_type, comp_id)
+                    parent_id, comp_id, comp_type, kwargs = content
+                    self.add_component(parent_id, comp_id, comp_type, kwargs)
 
                 elif topic == 'exec-rpc':
                     comp_id, rpc_name, args = content
@@ -135,14 +139,14 @@ class StreamJamClientHandler:
             print('Client disconnected:', self.ws.id)
 
 
-class StreamJamServer:
+class StreamJam:
     def __init__(self, host='localhost', port=7755):
         self.host = host
         self.port = port
         self.addr = f'ws://{host}:{port}'
         self.msg_queue = asyncio.Queue()
         self.components = {}
-        self.clients: tp.Dict[str, StreamJamClientHandler] = {}
+        self.clients: tp.Dict[str, ClientHandler] = {}
 
     def send_msg(self, client_id, msg: Message):
         self.msg_queue.put_nowait((client_id, msg))
@@ -150,7 +154,7 @@ class StreamJamServer:
     async def router(self, ws):
         print('Received new connection:', ws.path, ws.id, len(self.clients))
         if ws.id not in self.clients:
-            self.clients[ws.id] = StreamJamClientHandler(ws)
+            self.clients[ws.id] = ClientHandler(ws)
         client = self.clients[ws.id]
         # todo: add try-catch to remove client on client-disconnect after timeout
         await client.handle()
@@ -162,5 +166,5 @@ class StreamJamServer:
 
 
 if __name__ == '__main__':
-    server = StreamJamServer()
+    server = StreamJam()
     asyncio.run(server.serve())

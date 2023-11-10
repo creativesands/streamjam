@@ -3,118 +3,29 @@ import asyncio
 import traceback
 import websockets
 import typing as tp
-from dataclasses import dataclass
+
+from .protocol import Message
+from .component import Component, RootComponent
 
 
 """
+Notes:
     - with block batch update
 """
 
 
-class Component:
-    def __init__(self, _parent_id, _id, _client: 'ClientHandler', **kwargs):
-        self._parent_id = _parent_id
-        self._id = _id
-        self._client = _client
-        self.__child_components__: tp.List[Component] = []
-        self.__rpcs__: tp.Dict[str, tp.Callable] = {}
-        self.__state__ = {}
-
-    async def __exec_rpc__(self, rpc_name, args):
-        ...
-
-    def __get_state__(self):
-        return {
-            'id': self._id,
-            'state': self.__state__,
-            'type': self.__class__.__name__,  # TODO: how to guarantee comp names are unique
-            'children': [comp.__get_state__() for comp in self.__child_components__]
-        }
-
-    def __repr__(self):
-        return f'<Component:{self.__class__.__name__} ({self._id})>'
-
-
-class RootComponent(Component):
-    def __init__(self, _parent_id=None, _id='root', _client: 'ClientHandler' = None, **kwargs):
-        super().__init__(_parent_id, _id, _client)
-
-
-class Counter(Component):
-    def __init__(self, _parent_id, _id, _client: 'ClientHandler', count=0, offset=1):
-        super().__init__(_parent_id, _id, _client)
-
-        self.__rpcs__: tp.Dict[str, tp.Callable] = {
-            'inc': self.inc,
-            'dec': self.dec
-        }
-
-        self.__state__['count'] = count
-        self.__state__['offset'] = offset
-
-    @property
-    def count(self):
-        return self.__state__['count']
-
-    @count.setter
-    def count(self, value):
-        self.__state__['count'] = value
-        self._client.update_store(self._id, 'count', value)
-
-    @property
-    def offset(self):
-        return self.__state__['offset']
-
-    @offset.setter
-    def offset(self, value):
-        self.__state__['offset'] = value
-        self._client.update_store(self._id, 'offset', value)
-
-    async def inc(self):
-        for i in range(self.offset):
-            await asyncio.sleep(0.1)
-            self.count += 1
-        print('inc', self.count)
-
-    async def dec(self):
-        for i in range(self.offset):
-            await asyncio.sleep(0.1)
-            self.count -= 1
-        print('dec', self.count)
-
-    async def __exec_rpc__(self, rpc_name, args):
-        await self.__rpcs__.get(rpc_name)(*args)
-
-
-component_class_map: tp.Dict[str, tp.Type[Component]] = {
-    'Counter': Counter
-}
-
-
-@dataclass
-class Message:
-    topic: tp.Union[str, tp.Tuple]
-    content: tp.Any = None
-    req_id: tp.Optional[str] = None
-
-    def serialize(self):
-        if isinstance(self.topic, tuple):
-            self.topic = '>'.join(self.topic)
-        return json.dumps((self.req_id, self.topic, self.content))
-
-
 class ClientHandler:
-    def __init__(self, ws):
+    def __init__(self, ws, component_map: tp.Dict[str, tp.Type[Component]] = None):
         self.ws = ws
         self.id = self.ws.path
+        self.component_map = component_map
         self.components: tp.Dict[str, Component] = {'root': RootComponent()}
         self.msg_queue = asyncio.Queue()
         asyncio.create_task(self.msg_sender())
 
     def add_component(self, parent_id, comp_id, comp_type, kwargs):
-        comp_class = component_class_map[comp_type]
+        comp_class = self.component_map[comp_type]
         self.components[comp_id] = comp_class(_parent_id=parent_id, _id=comp_id, _client=self, **kwargs)
-        # if parent_id in self.components:
         parent = self.components[parent_id]
         parent.__child_components__.append(self.components[comp_id])
 
@@ -169,13 +80,14 @@ class ClientHandler:
 
 
 class StreamJam:
-    def __init__(self, host='localhost', port=7755):
+    def __init__(self, host='localhost', port=7755, component_map: tp.Dict[str, tp.Type[Component]] = None):
         self.host = host
         self.port = port
         self.addr = f'ws://{host}:{port}'
         self.msg_queue = asyncio.Queue()
         self.components = {}
         self.clients: tp.Dict[str, ClientHandler] = {}
+        self.component_map = component_map or {}
 
     def send_msg(self, client_id, msg: Message):
         self.msg_queue.put_nowait((client_id, msg))
@@ -184,7 +96,7 @@ class StreamJam:
         print('Received new connection:', ws.path, ws.id, len(self.clients))
         if ws.path not in self.clients:
             print('No prior state')
-            self.clients[ws.path] = ClientHandler(ws)
+            self.clients[ws.path] = ClientHandler(ws, self.component_map)
         else:
             print('Prior state:', self.clients[ws.path].components)
         client = self.clients[ws.path]
@@ -198,7 +110,3 @@ class StreamJam:
             print(f'Running StreamJam server on {self.addr!r}')
             await asyncio.Future()
 
-
-if __name__ == '__main__':
-    server = StreamJam()
-    asyncio.run(server.serve())

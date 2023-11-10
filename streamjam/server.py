@@ -40,8 +40,7 @@ class ClientHandler:
             self.send_msg(Message('app-state', None))
 
     def set_store(self, comp_id, store_name, value):
-        # updating store shadow var to avoid calling setter and sending updates back to client
-        setattr(self.components[comp_id], f'_{store_name}', value)
+        self.components[comp_id].__state__[store_name] = value
 
     async def exec_rpc(self, req_id, comp_id, rpc_name, args):
         result = await self.components[comp_id].__exec_rpc__(rpc_name, args)

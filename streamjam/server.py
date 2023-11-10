@@ -1,5 +1,6 @@
 import json
 import asyncio
+import traceback
 import websockets
 import typing as tp
 from dataclasses import dataclass
@@ -15,13 +16,31 @@ class Component:
         self._parent_id = _parent_id
         self._id = _id
         self._client = _client
+        self.__child_components__: tp.List[Component] = []
         self.__rpcs__: tp.Dict[str, tp.Callable] = {}
+        self.__state__ = {}
 
     async def __exec_rpc__(self, rpc_name, args):
         ...
 
+    def __get_state__(self):
+        return {
+            'id': self._id,
+            'state': self.__state__,
+            'type': self.__class__.__name__,  # TODO: how to guarantee comp names are unique
+            'children': [comp.__get_state__() for comp in self.__child_components__]
+        }
 
-class CounterComponent(Component):
+    def __repr__(self):
+        return f'<Component:{self.__class__.__name__} ({self._id})>'
+
+
+class RootComponent(Component):
+    def __init__(self, _parent_id=None, _id='root', _client: 'ClientHandler' = None, **kwargs):
+        super().__init__(_parent_id, _id, _client)
+
+
+class Counter(Component):
     def __init__(self, _parent_id, _id, _client: 'ClientHandler', count=0, offset=1):
         super().__init__(_parent_id, _id, _client)
 
@@ -30,26 +49,26 @@ class CounterComponent(Component):
             'dec': self.dec
         }
 
-        self._count = count
-        self._offset = offset
+        self.__state__['count'] = count
+        self.__state__['offset'] = offset
 
     @property
     def count(self):
-        return self._count
+        return self.__state__['count']
 
     @count.setter
     def count(self, value):
-        self._count = value
-        self._client.update_store(self._id, 'count', self._count)
+        self.__state__['count'] = value
+        self._client.update_store(self._id, 'count', value)
 
     @property
     def offset(self):
-        return self._offset
+        return self.__state__['offset']
 
     @offset.setter
     def offset(self, value):
-        self._offset = value
-        self._client.update_store(self._id, 'offset', self._offset)
+        self.__state__['offset'] = value
+        self._client.update_store(self._id, 'offset', value)
 
     async def inc(self):
         for i in range(self.offset):
@@ -68,7 +87,7 @@ class CounterComponent(Component):
 
 
 component_class_map: tp.Dict[str, tp.Type[Component]] = {
-    'Counter': CounterComponent
+    'Counter': Counter
 }
 
 
@@ -88,16 +107,26 @@ class ClientHandler:
     def __init__(self, ws):
         self.ws = ws
         self.id = self.ws.path
-        self.components: tp.Dict[str, Component] = {}
+        self.components: tp.Dict[str, Component] = {'root': RootComponent()}
         self.msg_queue = asyncio.Queue()
         asyncio.create_task(self.msg_sender())
 
     def add_component(self, parent_id, comp_id, comp_type, kwargs):
         comp_class = component_class_map[comp_type]
         self.components[comp_id] = comp_class(_parent_id=parent_id, _id=comp_id, _client=self, **kwargs)
+        # if parent_id in self.components:
+        parent = self.components[parent_id]
+        parent.__child_components__.append(self.components[comp_id])
 
     def update_store(self, comp_id, store_name, value):
         self.send_msg(Message(('store-value', comp_id, store_name), value))
+
+    def send_state(self):
+        root_component = self.components.get('root')
+        if root_component is not None:
+            self.send_msg(Message('app-state', root_component.__get_state__()['children']))
+        else:
+            self.send_msg(Message('app-state', None))
 
     def set_store(self, comp_id, store_name, value):
         # updating store shadow var to avoid calling setter and sending updates back to client
@@ -134,7 +163,7 @@ class ClientHandler:
                     self.set_store(comp_id, store_name, value)
 
         except Exception as e:
-            print(e)
+            print("Exception:", traceback.format_exc())
         finally:
             print('Client disconnected:', self.ws.id)
 
@@ -153,10 +182,15 @@ class StreamJam:
 
     async def router(self, ws):
         print('Received new connection:', ws.path, ws.id, len(self.clients))
-        if ws.id not in self.clients:
-            self.clients[ws.id] = ClientHandler(ws)
-        client = self.clients[ws.id]
+        if ws.path not in self.clients:
+            print('No prior state')
+            self.clients[ws.path] = ClientHandler(ws)
+        else:
+            print('Prior state:', self.clients[ws.path].components)
+        client = self.clients[ws.path]
+        client.ws = ws
         # todo: add try-catch to remove client on client-disconnect after timeout
+        client.send_state()  # TODO: can this be SSR'd instead?
         await client.handle()
 
     async def serve(self):

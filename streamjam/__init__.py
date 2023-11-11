@@ -1,5 +1,6 @@
 """
 Todos:
+    - [ ] deal with duplicate component names
     - [ ] close connection but maintain state for a preset time
     - [ ] delete local component objects when delete in FE
     - [ ] with block batch update in both FE and BE

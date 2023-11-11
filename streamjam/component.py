@@ -1,11 +1,26 @@
 import typing as tp
-from dataclasses import dataclass
 
 if tp.TYPE_CHECKING:
     from .server import ClientHandler
 
 
+def rpc(fn):
+    setattr(fn, 'rpc', True)
+    return fn
+
+
 class Component:
+    __prop_defaults__ = {}
+
+    class Layout:
+        ...
+
+    class Style:
+        ...
+
+    class Script:
+        ...
+
     def __init__(self, id: str, parent_id: str, client: 'ClientHandler'):
         self.__id = id
         self.__parent_id = parent_id
@@ -17,7 +32,10 @@ class Component:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
+        cls.__prop_defaults__ = {}
         for name in cls.__annotations__:
+            default_value = cls.__dict__.get(name, ...)
+            cls.__prop_defaults__[name] = default_value
             getter, setter = cls.__make_property(name)
             setattr(cls, name, property(getter, setter))
 
@@ -34,13 +52,12 @@ class Component:
 
         return getter, setter
 
-
     async def __exec_rpc__(self, rpc_name, args):
         method = getattr(self, rpc_name, None)
         if callable(method):
             return await method(*args)
         else:
-            raise AttributeError(f"RPC method '{method_name}' not found in {self.__class__.__name__}")
+            raise AttributeError(f"RPC method {method!r} not found in {self.__class__.__name__}")
 
     def __get_state__(self):
         return {
@@ -51,7 +68,7 @@ class Component:
         }
 
     def __repr__(self):
-        return f'<Component:{self.__class__.__name__} ({self.__id})>'
+        return f'<Component: {self.__class__.__name__} ({self.__id})>'
 
 
 class RootComponent(Component):

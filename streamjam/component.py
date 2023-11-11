@@ -1,33 +1,59 @@
 import typing as tp
+from dataclasses import dataclass
 
 if tp.TYPE_CHECKING:
     from .server import ClientHandler
 
 
 class Component:
-    def __init__(self, _parent_id, _id, _client: 'ClientHandler', **kwargs):
-        self._parent_id = _parent_id
-        self._id = _id
-        self._client = _client
-        self.__child_components__: tp.List[Component] = []
-        self.__rpcs__: tp.Dict[str, tp.Callable] = {}
+    def __init__(self, id: str, parent_id: str, client: 'ClientHandler'):
+        self.__id = id
+        self.__parent_id = parent_id
+        self.__client = client
+
         self.__state__ = {}
+        self.__child_components__: tp.List[Component] = []
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        for name in cls.__annotations__:
+            getter, setter = cls.__make_property(name)
+            setattr(cls, name, property(getter, setter))
+
+    @classmethod
+    def __make_property(cls, name):
+        default_value = cls.__dict__.get(name)
+
+        def getter(self):
+            return self.__state__.get(name, default_value)
+
+        def setter(self, value):
+            self.__state__.__setitem__(name, value)
+            self.__client.update_store(self.__id, name, value)
+
+        return getter, setter
+
 
     async def __exec_rpc__(self, rpc_name, args):
-        ...
+        method = getattr(self, rpc_name, None)
+        if callable(method):
+            return await method(*args)
+        else:
+            raise AttributeError(f"RPC method '{method_name}' not found in {self.__class__.__name__}")
 
     def __get_state__(self):
         return {
-            'id': self._id,
+            'id': self.__id,
             'state': self.__state__,
             'type': self.__class__.__name__,  # TODO: how to guarantee comp names are unique
             'children': [comp.__get_state__() for comp in self.__child_components__]
         }
 
     def __repr__(self):
-        return f'<Component:{self.__class__.__name__} ({self._id})>'
+        return f'<Component:{self.__class__.__name__} ({self.__id})>'
 
 
 class RootComponent(Component):
-    def __init__(self, _parent_id=None, _id='root', _client: 'ClientHandler' = None, **kwargs):
-        super().__init__(_parent_id, _id, _client)
+    def __init__(self, __id: str = 'root', __parent_id: str = None, __client: 'ClientHandler' = None):
+        super().__init__(__id, __parent_id, __client)

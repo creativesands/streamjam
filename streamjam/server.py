@@ -8,12 +8,6 @@ from .protocol import Message
 from .component import Component, RootComponent
 
 
-"""
-Notes:
-    - with block batch update
-"""
-
-
 class ClientHandler:
     def __init__(self, ws, component_map: tp.Dict[str, tp.Type[Component]] = None):
         self.ws = ws

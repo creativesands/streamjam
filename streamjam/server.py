@@ -75,7 +75,8 @@ class ClientHandler:
 
 
 class StreamJam:
-    def __init__(self, host='localhost', port=7755, component_map: tp.Dict[str, tp.Type[Component]] = None):
+    def __init__(self, name="StreamJam", host='localhost', port=7755, component_map: tp.Dict[str, tp.Type[Component]] = None):
+        self.name = name
         self.host = host
         self.port = port
         self.addr = f'ws://{host}:{port}'

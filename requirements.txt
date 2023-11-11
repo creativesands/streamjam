@@ -1,2 +1,4 @@
-setuptools>=63.2.0
-websockets>=12.0
+setuptools
+websockets
+cookiecutter
+typer

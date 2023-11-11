@@ -1,5 +1,7 @@
 import { writable } from "svelte/store"
 
+export { default as RenderComponent } from './RenderComponent.svelte';
+
 export const ID = () => '_' + Math.random().toString(36).substring(2, 9);
 
 class Component {

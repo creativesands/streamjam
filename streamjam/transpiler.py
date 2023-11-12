@@ -1,4 +1,8 @@
+import os
 import json
+import shutil
+import typing as tp
+from pathlib import Path
 from importlib.util import spec_from_file_location, module_from_spec
 
 from .component import Component
@@ -10,7 +14,7 @@ from .component import Component
 - convert component to .svelte file
 - copy any .svelte files as is
 - maintain directory hierarchy
-- watch /components for any updates and continnuously transpile
+- watch /components for any updates and continuously transpile
 """
 
 
@@ -21,8 +25,8 @@ SCRIPT_TEMPLATE = """
     import {{ getContext, setContext, onDestroy as __onDestroy }} from "svelte"
     import {{ ID }} from "streamjam"
 
-    export let __id = ID()
-    export let __restored = false
+    export let __id = {comp_id}
+    export let __restored = {is_root}
 
     /* Props */
     {prop_init}
@@ -63,8 +67,7 @@ def load_module(module_name, file_path):
     return module
 
 
-def transpile(file_path):
-    print('Transpiling:', file_path)
+def transpile_streamjam_to_svelte(file_path):
     module = load_module(module_name=file_path.stem, file_path=file_path)
 
     for attr_name in dir(module):
@@ -88,12 +91,14 @@ def transpile(file_path):
             rpc_init = []
             for name, method in cls.__dict__.items():
                 if hasattr(method, 'rpc'):
-                    rpc_init.append(f'__self.proxyRPC({name!r})')
+                    rpc_init.append(f'const {name} = __self.proxyRPC({name!r})')
 
             component_script = cls.Script.__doc__ or ''
             svelte_html = cls.Layout.__doc__ or ''
             svelte_css = cls.Style.__doc__ or ''
             svelte_script = SCRIPT_TEMPLATE.format(
+                comp_id='"root"' if cls.__name__ == 'Root' else 'ID()',
+                is_root='true' if cls.__name__ == 'Root' else 'false',
                 component_name=cls.__name__,
                 prop_dict=', '.join(prop_dict),
                 prop_init='\n    '.join(prop_init),
@@ -108,4 +113,61 @@ def transpile(file_path):
             svelte_html and svelte_content.append(f'{svelte_html}')
             svelte_css and svelte_content.append(f'<style>\n{svelte_css}\n</style>')
 
-            return '\n\n'.join(svelte_content)  # returns only first component
+            return cls.__name__, '\n\n'.join(svelte_content)  # returns only first component
+
+
+def create_component_index_js(component_paths: tp.List[Path]):
+    imports = '\n'.join([f'import {comp.stem} from "./{comp.as_posix()}"' for comp in component_paths])
+    exports = f'export default {{{", ".join([comp.stem for comp in component_paths])}}}'
+    return imports + '\n\n' + exports + '\n'
+
+
+def build_project(base_path, output_path):
+    base_path = Path(base_path)
+    output_path = Path(output_path)
+
+    # Copy /public folder
+    public_src = base_path / 'public'
+    public_dest = output_path / 'public'
+    if public_src.exists():
+        shutil.copytree(public_src, public_dest, dirs_exist_ok=True)
+
+    # Process /components folder
+    components_src = base_path / 'components'
+    components_dest = output_path / 'src/components'
+
+    component_paths = []
+    if components_src.exists():
+        for root, dirs, files in os.walk(components_src):
+            if root.startswith('__'):
+                print('ignoring', root)
+                continue
+
+            root_path = Path(root)
+            relative_path = root_path.relative_to(components_src)
+            dest_path = components_dest / relative_path
+
+            # Create directories in destination
+            dest_path.mkdir(parents=True, exist_ok=True)
+
+            for file in files:
+                src_file = root_path / file
+                if file.startswith('__'):
+                    continue
+                if file.endswith('.py'):
+                    print('>>> Transpiling:', file)
+                    # Transpile Python files and save as .svelte
+                    comp_name, transpiled_content = transpile_streamjam_to_svelte(src_file)
+                    dest_file = dest_path / (comp_name + '.svelte')
+
+                    component_paths.append(dest_file.relative_to(components_dest))
+                    print('Producing:', dest_file, '\n')
+                    with dest_file.open('w') as f:
+                        f.write(transpiled_content)
+                else:
+                    # Copy other files as is
+                    dest_file = dest_path / file
+                    shutil.copy2(src_file, dest_file)
+
+    index_js = components_dest / 'index.js'
+    index_js.write_text(create_component_index_js(component_paths))

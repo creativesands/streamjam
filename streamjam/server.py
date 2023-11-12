@@ -17,7 +17,7 @@ class ClientHandler:
         self.msg_queue = asyncio.Queue()
         asyncio.create_task(self.msg_sender())
 
-    def add_component(self, parent_id, comp_id, comp_type, props):
+    def add_component(self, comp_id, parent_id, comp_type, props):
         comp_class = self.component_map[comp_type]
         component = comp_class(id=comp_id, parent_id=parent_id, client=self)
         component.__state__.update(props)
@@ -57,8 +57,8 @@ class ClientHandler:
                 req_id, topic, content = json.loads(msg)
 
                 if topic == 'add-component':
-                    parent_id, comp_id, comp_type, props = content
-                    self.add_component(parent_id, comp_id, comp_type, props)
+                    comp_id, parent_id, comp_type, props = content
+                    self.add_component(comp_id, parent_id, comp_type, props)
 
                 elif topic == 'exec-rpc':
                     comp_id, rpc_name, args = content

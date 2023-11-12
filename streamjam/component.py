@@ -32,6 +32,9 @@ class Component:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
+        if not hasattr(cls, '__annotations__'):
+            cls.__annotations__ = {}
+
         cls.__prop_defaults__ = {}
         for name in cls.__annotations__:
             default_value = cls.__dict__.get(name, ...)

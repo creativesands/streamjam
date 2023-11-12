@@ -5,16 +5,16 @@ export { default as RenderComponent } from './RenderComponent.svelte';
 export const ID = () => '_' + Math.random().toString(36).substring(2, 9);
 
 class Component {
-    constructor(parentId, id, restored, type, kwargs, client) {
-        this.parentId = parentId
+    constructor(id, parentId, restored, type, kwargs, client) {
         this.id = id
+        this.parentId = parentId
         this.type = type
         this.client = client
         this.stores = {}
         this.rpcs = {}
 
         if (restored === false) {
-            this.client.wsSend('add-component', [this.parentId, this.id, this.type, kwargs])
+            this.client.wsSend('add-component', [this.id, this.parentId, this.type, kwargs])
         }
     }
 
@@ -121,7 +121,6 @@ export class StreamJamClient {
 
     registerMessageHandler(topic, handler) {
         this.messageHandlerRegistry[topic] = handler
-        console.log('new handler', this.messageHandlerRegistry)
     }
 
     wsSend(topic, content=null) {
@@ -136,8 +135,8 @@ export class StreamJamClient {
         })
     }
 
-    newComponent(parentId, id, restored, type, kwargs) {
-        const component = new Component(parentId, id, restored, type, kwargs, this)
+    newComponent(id, parentId, restored, type, kwargs) {
+        const component = new Component(id, parentId, restored, type, kwargs, this)
         this.components[id] = component
         return component
     }

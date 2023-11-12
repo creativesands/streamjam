@@ -1,5 +1,6 @@
 """
 Todos:
+    - [ ] use hash('component_path') to represent component type
     - [ ] deal with duplicate component names
     - [ ] close connection but maintain state for a preset time
     - [ ] delete local component objects when delete in FE

@@ -1,11 +1,12 @@
 from typer import Typer
 
-from .project import create
+from .project import create, build
 
 app = Typer()
 
 
 app.command()(create)
+app.command()(build)
 
 
 @app.command()

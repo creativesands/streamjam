@@ -122,7 +122,35 @@ def create_component_index_js(component_paths: tp.List[Path]):
     return imports + '\n\n' + exports + '\n'
 
 
-def build_project(base_path, output_path):
+def get_components_in_project(base_path='.'):
+    base_path = Path(base_path)
+    components_src = base_path / 'components'
+
+    components = {}
+    for root, dirs, files in os.walk(components_src):
+        if root.startswith('__'):
+            print('ignoring', root)
+            continue
+
+        root_path = Path(root)
+
+        for file in files:
+            src_file = root_path / file
+            if file.startswith('__'):
+                continue
+            if file.endswith('.py'):
+                module = load_module(module_name=src_file.stem, file_path=src_file)
+                for attr_name in dir(module):
+                    cls = getattr(module, attr_name)
+                    if isinstance(cls, type) and issubclass(cls, Component) and cls is not Component:
+                        components[attr_name] = cls
+
+    print(components)
+    return components
+
+
+def build_project(base_path='.', output_path='.build'):
+    print('Building project...')
     base_path = Path(base_path)
     output_path = Path(output_path)
 

@@ -6,6 +6,7 @@ import typing as tp
 
 from .protocol import Message
 from .component import Component, RootComponent
+from .transpiler import get_components_in_project
 
 
 class ClientHandler:
@@ -75,13 +76,18 @@ class ClientHandler:
 
 
 class StreamJam:
-    def __init__(self, name="StreamJam", host='localhost', port=7755, component_map: tp.Dict[str, tp.Type[Component]] = None):
+    def __init__(
+            self,
+            name: str = "StreamJam",
+            host: str = "localhost",
+            port: int = 7755
+    ):
         self.name = name
         self.host = host
         self.port = port
         self.addr = f'ws://{host}:{port}'
         self.clients: tp.Dict[str, ClientHandler] = {}
-        self.component_map = component_map or {}
+        self.component_map = get_components_in_project(name)
 
     async def router(self, ws):
         print('Received new connection:', ws.path, ws.id, len(self.clients))

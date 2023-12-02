@@ -11,6 +11,10 @@ setup(
     entry_points={
         "console_scripts": ["streamjam=streamjam.cli:app"]
     },
+    include_package_data=True,
+    package_data={
+        "StreamJam": ['script_tmpl.html']
+    },
     author="Sandeep S Kumar",
     author_email="sanygeek@gmail.com",
     description="Unifying frontend and backend into one Pythonic experience for sleek, interactive web apps.",

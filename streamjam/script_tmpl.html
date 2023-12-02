@@ -1,0 +1,45 @@
+<script>
+    /*---------- BEGIN: STREAMJAM ----------*/
+
+    import {{ getContext, setContext, onDestroy as __onDestroy }} from "svelte"
+
+    {import_components}
+
+    export let id = {comp_id}
+
+    /* Props */
+    {prop_init}
+
+    const __client = getContext("streamjam")
+    const __parentId = getContext("__parentId")
+    const __hasServer = {has_server}
+    const __self = __client.newComponent(id, __parentId, __hasServer && !__client.isRestored, {component_name!r}, {{{prop_dict}}})
+    id && setContext("__parentId", id)
+
+    /* Shadow Stores Init */
+    {store_init}
+
+    if (__hasServer && __client.isRestored) {{
+        {store_from_state}
+    }} else {{
+        {store_from_props}
+    }}
+
+    /* Shadow Stores Reactive Get */
+    {store_get}
+
+    /* Shadow Stores Reactive Set */
+    {store_set}
+
+    /* Proxy RPCs */
+    {rpc_init}
+
+    /* Destroy Component */
+    __onDestroy(() => {{
+        __client.destroyComponent(__self)
+    }})
+
+    /*---------- END: STREAMJAM ----------*/
+
+    {component_script}
+</script>

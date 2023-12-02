@@ -11,6 +11,7 @@ def rpc(fn):
 
 class Component:
     __prop_defaults__ = {}
+    __has_server__ = True
 
     class Layout:
         ...
@@ -30,7 +31,7 @@ class Component:
         self.__child_components__: tp.List[Component] = []
 
     def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
+        cls.__has_server__ = kwargs.get('server', True)
 
         if not hasattr(cls, '__annotations__'):
             cls.__annotations__ = {}
@@ -72,8 +73,3 @@ class Component:
 
     def __repr__(self):
         return f'<Component: {self.__class__.__name__} ({self.__id})>'
-
-
-class RootComponent(Component):
-    def __init__(self, __id: str = 'root', __parent_id: str = None, __client: 'ClientHandler' = None):
-        super().__init__(__id, __parent_id, __client)

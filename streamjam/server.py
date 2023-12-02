@@ -5,7 +5,7 @@ import websockets
 import typing as tp
 
 from .protocol import Message
-from .component import Component, RootComponent
+from .component import Component
 from .transpiler import get_components_in_project
 
 
@@ -14,7 +14,7 @@ class ClientHandler:
         self.ws = ws
         self.id = self.ws.path
         self.component_map = component_map
-        self.components: tp.Dict[str, Component] = {'root': RootComponent()}
+        self.components: tp.Dict[str, Component] = {}
         self.msg_queue = asyncio.Queue()
         asyncio.create_task(self.msg_sender())
 
@@ -30,9 +30,11 @@ class ClientHandler:
         self.send_msg(Message(('store-value', comp_id, store_name), value))
 
     def send_state(self):
-        root_component = self.components.get('root')
-        if root_component is not None:
-            self.send_msg(Message('app-state', root_component.__get_state__()['children']))
+        if len(self.components):
+            state = {}
+            for name, comp in self.components.items():
+                state[name] = comp.__state__
+            self.send_msg(Message('app-state', state))
         else:
             self.send_msg(Message('app-state', None))
 

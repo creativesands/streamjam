@@ -5,7 +5,7 @@ export { default as RenderComponent } from './RenderComponent.svelte';
 export const ID = () => '_' + Math.random().toString(36).substring(2, 9);
 
 class Component {
-    constructor(id, parentId, restored, type, kwargs, client) {
+    constructor(id, parentId, server, type, kwargs, client) {
         this.id = id
         this.parentId = parentId
         this.type = type
@@ -13,7 +13,7 @@ class Component {
         this.stores = {}
         this.rpcs = {}
 
-        if (restored === false) {
+        if (server === true) {
             this.client.wsSend('add-component', [this.id, this.parentId, this.type, kwargs])
         }
     }
@@ -67,7 +67,9 @@ export class StreamJamClient {
         this.components = {}
 
         this._resolveState = null
-        this._appState = new Promise((resolve) => {this._resolveState = resolve})
+        this._restoreState = new Promise((resolve) => {this._resolveState = resolve})
+        this.state = null
+        this.isRestored = false
     }
 
     async connect() {
@@ -92,10 +94,8 @@ export class StreamJamClient {
         this.registerMessageHandler('app-state', this._resolveState)
 
         await hasConnected
-    }
-
-    async getState() {
-        return await this._appState  // TODO: should this be cleared after app hydration?
+        this.state = await this._restoreState
+        this.isRestored = !!this.state
     }
 
     messageHandler(this_) {
@@ -135,8 +135,8 @@ export class StreamJamClient {
         })
     }
 
-    newComponent(id, parentId, restored, type, kwargs) {
-        const component = new Component(id, parentId, restored, type, kwargs, this)
+    newComponent(id, parentId, server, type, kwargs) {
+        const component = new Component(id, parentId, server, type, kwargs, this)
         this.components[id] = component
         return component
     }

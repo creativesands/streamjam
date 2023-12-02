@@ -17,51 +17,12 @@ from .component import Component
 - copy any .svelte files as is
 - maintain directory hierarchy
 - watch /components for any updates and continuously transpile
+----
+- write heuristics for __has_server__
 """
 
 
-SCRIPT_TEMPLATE = """
-<script>
-    /*---------- BEGIN: STREAMJAM ----------*/
-
-    import {{ getContext, setContext, onDestroy as __onDestroy }} from "svelte"
-    import {{ ID }} from "streamjam"
-    
-    {import_components}
-
-    export let id = {comp_id}
-    export let __restored = {is_root}
-
-    /* Props */
-    {prop_init}
-
-    const __client = getContext("streamjam")
-    const __parentId = getContext("__parentId")
-    const __self = __client.newComponent(id, __parentId, __restored, {component_name!r}, {{{prop_dict}}})
-    setContext("__parentId", id)
-
-    /* Shadow Stores Init */
-    {store_init}
-
-    /* Shadow Stores Reactive Get */
-    {store_get}
-
-    /* Shadow Stores Reactive Set */
-    {store_set}
-
-    /* Proxy RPCs */
-    {rpc_init}
-
-    /* Destroy Component */
-    __onDestroy(() => {{
-        __client.destroyComponent(__self)
-    }})
-
-    /*---------- END: STREAMJAM ----------*/
-
-    {component_script}
-</script>
-"""
+SCRIPT_TEMPLATE = open(os.path.dirname(__file__) + '/script_tmpl.html').read()
 
 
 def load_module(module_name, file_path):
@@ -102,6 +63,8 @@ def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List
     prop_dict = []
     prop_init = []
     store_init = []
+    store_from_state = []
+    store_from_props = []
     store_get = []
     store_set = []
     for prop, default in cls.__prop_defaults__.items():
@@ -110,7 +73,9 @@ def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List
             prop_init.append(f'export let {prop}')
         else:
             prop_init.append(f'export let {prop} = {json.dumps(default)}')
-        store_init.append(f'let _{prop} = __self.newStore({prop!r}, {prop})')
+        store_init.append(f'let _{prop}')
+        store_from_state.append(f'_{prop} = __self.newStore({prop!r}, __client.state[id][{prop!r}])')
+        store_from_props.append(f'_{prop} = __self.newStore({prop!r}, {prop})')
         store_get.append(f'$: {prop} = $_{prop}')
         store_set.append(f'$: if ($_{prop} !== {prop}) _{prop}.set({prop})')
 
@@ -131,12 +96,15 @@ def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List
     svelte_css = cls.Style.__doc__ or ''
     svelte_script = SCRIPT_TEMPLATE.format(
         import_components='\n    '.join(import_components),
-        comp_id='"root"' if cls.__name__ == 'Root' else 'ID()',
+        comp_id='"root"' if cls.__name__ == 'Root' else 'null',
         is_root='true' if cls.__name__ == 'Root' else 'false',
         component_name=cls.__name__,
         prop_dict=', '.join(prop_dict),
         prop_init='\n    '.join(prop_init),
+        has_server='true' if cls.__has_server__ else 'false',
         store_init='\n    '.join(store_init),
+        store_from_state='\n        '.join(store_from_state),
+        store_from_props='\n        '.join(store_from_props),
         store_get='\n    '.join(store_get),
         store_set='\n    '.join(store_set),
         rpc_init='\n    '.join(rpc_init),
@@ -199,7 +167,6 @@ def get_components_in_project(base_path='.'):
                     if isinstance(cls, type) and issubclass(cls, Component) and cls is not Component:
                         components[attr_name] = cls
 
-    print(components)
     return components
 
 

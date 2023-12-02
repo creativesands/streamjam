@@ -5,7 +5,7 @@
 
 <svelte:component
         this={component_map[component.type]}
-        __id="{component.id}"
+        id="{component.id}"
         __restored="{true}"
         {...component.state}
 />

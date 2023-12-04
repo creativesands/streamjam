@@ -3,9 +3,10 @@ import asyncio
 import traceback
 import websockets
 import typing as tp
+from collections import defaultdict
 
 from .protocol import Message
-from .component import Component
+from .component import Component, Event
 from .transpiler import get_components_in_project
 
 
@@ -16,7 +17,17 @@ class ClientHandler:
         self.component_map = component_map
         self.components: tp.Dict[str, Component] = {}
         self.msg_queue = asyncio.Queue()
+        self.event_queue: 'asyncio.Queue[Event]' = asyncio.Queue()
+        self.event_handlers = defaultdict(list)
+        self.store_update_handlers = defaultdict(list)
         asyncio.create_task(self.msg_sender())
+        asyncio.create_task(self.event_dispatcher())
+
+    def register_event_handler(self, event: str, handler: tp.Callable):
+        self.event_handlers[event].append(handler)
+
+    def register_store_update_handler(self, id: str, store: str, handler: tp.Callable):
+        self.store_update_handlers[(id, store)].append(handler)
 
     def add_component(self, comp_id, parent_id, comp_type, props):
         comp_class = self.component_map[comp_type]
@@ -39,6 +50,10 @@ class ClientHandler:
             self.send_msg(Message('app-state', None))
 
     def set_store(self, comp_id, store_name, value):
+        # Note: store property's value is set only after the handlers are called
+        #       so within the handler, the property will have old value while argument is new value
+        for handler in self.store_update_handlers[(comp_id, store_name)]:
+            asyncio.create_task(handler(value))
         self.components[comp_id].__state__[store_name] = value
 
     async def exec_rpc(self, req_id, comp_id, rpc_name, args):
@@ -52,6 +67,12 @@ class ClientHandler:
         while True:
             msg: Message = await self.msg_queue.get()
             await self.ws.send(msg.serialize())
+
+    async def event_dispatcher(self):
+        while True:
+            event = await self.event_queue.get()
+            for handler in self.event_handlers[event.name]:
+                asyncio.create_task(handler(event))
 
     async def handle(self):
         try:

@@ -1,12 +1,15 @@
 import typing as tp
+from dataclasses import dataclass
 
 if tp.TYPE_CHECKING:
     from .server import ClientHandler
 
 
-def rpc(fn):
-    setattr(fn, 'rpc', True)
-    return fn
+@dataclass
+class Event:
+    name: str
+    source: 'Component'
+    data: tp.Any
 
 
 class Component:
@@ -23,12 +26,13 @@ class Component:
         ...
 
     def __init__(self, id: str, parent_id: str, client: 'ClientHandler'):
-        self.__id = id
+        self.id = id
         self.__parent_id = parent_id
         self.__client = client
 
         self.__state__ = {}
         self.__child_components__: tp.List[Component] = []
+        self._register_handlers()
 
     def __init_subclass__(cls, **kwargs):
         cls.__has_server__ = kwargs.get('server', True)
@@ -52,7 +56,7 @@ class Component:
 
         def setter(self, value):
             self.__state__.__setitem__(name, value)
-            self.__client.update_store(self.__id, name, value)
+            self.__client.update_store(self.id, name, value)
 
         return getter, setter
 
@@ -63,13 +67,37 @@ class Component:
         else:
             raise AttributeError(f"RPC method {method!r} not found in {self.__class__.__name__}")
 
-    def __get_state__(self):
-        return {
-            'id': self.__id,
-            'state': self.__state__,
-            'type': self.__class__.__name__,  # TODO: how to guarantee comp names are unique
-            'children': [comp.__get_state__() for comp in self.__child_components__]
-        }
-
     def __repr__(self):
-        return f'<Component: {self.__class__.__name__} ({self.__id})>'
+        return f'<Component: {self.__class__.__name__} ({self.id})>'
+
+    @staticmethod
+    def rpc(fn):
+        setattr(fn, 'rpc', True)
+        return fn
+
+    @staticmethod
+    def on_event(event_name):
+        def handler(fn):
+            setattr(fn, 'event_handler', event_name)
+            return fn
+        return handler
+
+    @staticmethod
+    def on_update(prop):
+        def handler(fn):
+            setattr(fn, 'store_update_handler', prop)
+            return fn
+        return handler
+
+    def _register_handlers(self):
+        for attr_name in dir(self):
+            handler = getattr(self, attr_name)
+            if hasattr(handler, 'event_handler'):
+                event_name = getattr(handler, 'event_handler')
+                self.__client.register_event_handler(event_name, handler)
+            if hasattr(handler, 'store_update_handler'):
+                store_name = getattr(handler, 'store_update_handler')
+                self.__client.register_store_update_handler(self.id, store_name, handler)
+
+    def dispatch(self, name, data=None):
+        self.__client.event_queue.put_nowait(Event(name, self, data))

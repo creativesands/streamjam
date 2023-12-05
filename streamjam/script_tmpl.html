@@ -13,13 +13,14 @@
     const __client = getContext("streamjam")
     const __parentId = getContext("__parentId")
     const __hasServer = {has_server}
-    const __self = __client.newComponent(id, __parentId, __hasServer && !__client.isRestored, {component_name!r}, {{{prop_dict}}})
+    const __should_create_component = __hasServer && (!__client.isRestored || !(id in __client.state))
+    const __self = __client.newComponent(id, __parentId, __should_create_component, {component_name!r}, {{{prop_dict}}})
     id && setContext("__parentId", id)
 
     /* Shadow Stores Init */
     {store_init}
 
-    if (__hasServer && __client.isRestored) {{
+    if (__client.state &&  id in __client.state) {{
         {store_from_state}
     }} else {{
         {store_from_props}

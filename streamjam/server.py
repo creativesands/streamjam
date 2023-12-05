@@ -19,7 +19,7 @@ class ClientHandler:
         self.msg_queue = asyncio.Queue()
         self.event_queue: 'asyncio.Queue[Event]' = asyncio.Queue()
         self.event_handlers = defaultdict(list)
-        self.store_update_handlers = defaultdict(list)
+        self.store_update_handlers: tp.Dict[tp.Tuple[str, str], tp.Callable] = {}
         asyncio.create_task(self.msg_sender())
         asyncio.create_task(self.event_dispatcher())
 
@@ -27,7 +27,7 @@ class ClientHandler:
         self.event_handlers[event].append(handler)
 
     def register_store_update_handler(self, id: str, store: str, handler: tp.Callable):
-        self.store_update_handlers[(id, store)].append(handler)
+        self.store_update_handlers[(id, store)] = handler
 
     def add_component(self, comp_id, parent_id, comp_type, props):
         comp_class = self.component_map[comp_type]
@@ -50,11 +50,15 @@ class ClientHandler:
             self.send_msg(Message('app-state', None))
 
     def set_store(self, comp_id, store_name, value):
-        # Note: store property's value is set only after the handlers are called
-        #       so within the handler, the property will have old value while argument is new value
-        for handler in self.store_update_handlers[(comp_id, store_name)]:
-            asyncio.create_task(handler(value))
-        self.components[comp_id].__state__[store_name] = value
+        # Note: store property's value is set by return value of on_update handler if it exists
+        if (comp_id, store_name) in self.store_update_handlers:
+            asyncio.create_task(self.exec_update_store_handler(comp_id, store_name, value))
+        else:
+            self.components[comp_id].__state__[store_name] = value
+
+    async def exec_update_store_handler(self, comp_id, store_name, value):
+        handler = self.store_update_handlers[(comp_id, store_name)]
+        self.components[comp_id].__state__[store_name] = await handler(value)
 
     async def exec_rpc(self, req_id, comp_id, rpc_name, args):
         result = await self.components[comp_id].__exec_rpc__(rpc_name, args)

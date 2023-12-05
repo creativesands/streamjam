@@ -26,8 +26,14 @@ class ClientHandler:
     def register_event_handler(self, event: str, handler: tp.Callable):
         self.event_handlers[event].append(handler)
 
+    def remove_event_handler(self, event: str, handler: tp.Callable):
+        self.event_handlers[event].remove(handler)
+
     def register_store_update_handler(self, id: str, store: str, handler: tp.Callable):
         self.store_update_handlers[(id, store)] = handler
+
+    def remove_store_update_handler(self, id: str, store: str):
+        del self.store_update_handlers[(id, store)]
 
     def add_component(self, comp_id, parent_id, comp_type, props):
         comp_class = self.component_map[comp_type]
@@ -36,6 +42,10 @@ class ClientHandler:
         self.components[comp_id] = component
         parent = self.components[parent_id]
         parent.__child_components__.append(self.components[comp_id])
+
+    async def destroy_component(self, comp_id):
+        await self.components[comp_id].__destroy__()
+        del self.components[comp_id]
 
     def update_store(self, comp_id, store_name, value):
         self.send_msg(Message(('store-value', comp_id, store_name), value))
@@ -81,7 +91,7 @@ class ClientHandler:
     async def handle(self):
         try:
             async for msg in self.ws:
-                print('got message:', msg)
+                print('>>> Received message:', msg)
                 req_id, topic, content = json.loads(msg)
 
                 if topic == 'add-component':
@@ -96,10 +106,14 @@ class ClientHandler:
                     comp_id, store_name, value = content
                     self.set_store(comp_id, store_name, value)
 
+                elif topic == 'destroy-component':
+                    (comp_id,) = content
+                    asyncio.create_task(self.destroy_component(comp_id))
+
         except Exception as e:
             print("Exception:", traceback.format_exc())
         finally:
-            print('Client disconnected:', self.ws.id)
+            print('!!! Client disconnected:', self.ws.id)
 
 
 class StreamJam:
@@ -117,12 +131,12 @@ class StreamJam:
         self.component_map = get_components_in_project(name)
 
     async def router(self, ws):
-        print('Received new connection:', ws.path, ws.id, len(self.clients))
+        print('>>> Received new connection:', ws.path, ws.id, len(self.clients))
         if ws.path not in self.clients:
             print('No prior state')
             self.clients[ws.path] = ClientHandler(ws, self.component_map)
         else:
-            print('Prior state:', self.clients[ws.path].components)
+            print('Prior state: \n', self.clients[ws.path].components)
         client = self.clients[ws.path]
         client.ws = ws
         # todo: add try-catch to remove client on client-disconnect after timeout

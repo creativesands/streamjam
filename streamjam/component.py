@@ -99,5 +99,22 @@ class Component:
                 store_name = getattr(handler, 'store_update_handler')
                 self.__client.register_store_update_handler(self.id, store_name, handler)
 
+    def _remove_handlers(self):
+        for attr_name in dir(self):
+            handler = getattr(self, attr_name)
+            if hasattr(handler, 'event_handler'):
+                event_name = getattr(handler, 'event_handler')
+                self.__client.remove_event_handler(event_name, handler)
+            if hasattr(handler, 'store_update_handler'):
+                store_name = getattr(handler, 'store_update_handler')
+                self.__client.remove_store_update_handler(self.id, store_name)
+
     def dispatch(self, name, data=None):
         self.__client.event_queue.put_nowait(Event(name, self, data))
+
+    async def on_destroy(self):
+        pass
+
+    async def __destroy__(self):
+        await self.on_destroy()
+        self._remove_handlers()

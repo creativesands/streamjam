@@ -10,6 +10,7 @@ class Component {
         this.client = client
         this.stores = {}
         this.rpcs = {}
+        this.messageHandlerTopics = []
 
         if (server === true) {
             this.client.wsSend('add-component', [this.id, this.parentId, this.type, kwargs])
@@ -23,7 +24,8 @@ class Component {
         const topic = ['store-value', this.id, storeName].join('>')
         this.client.registerMessageHandler(topic, (value) => {
             set(value)
-            console.log('setting new value for', storeName, value)
+            this.messageHandlerTopics.push(topic)
+            console.debug('Setting new value for', storeName, value)
         })
 
         const store = {
@@ -51,7 +53,8 @@ class Component {
     }
 
     destroy() {
-        // remove message handlers?
+        this.messageHandlerTopics.forEach(this.client.removeMessageHandler)
+        this.client.wsSend('destroy-component', [this.id])
     }
 }
 
@@ -98,15 +101,15 @@ export class StreamJamClient {
 
     messageHandler(this_) {
         return function _messageHandler(e) {
-            console.log('received:', e.data)
+            console.debug('Received message:', e.data)
             const [reqId, topic, content] = JSON.parse(e.data)
-            console.info('Message from server:', reqId, topic, this_.messageHandlerRegistry)
+            console.debug('Message from server:', reqId, topic, this_.messageHandlerRegistry)
 
             if (topic in this_.messageHandlerRegistry) {
-                console.log('calling', topic, content)
+                console.debug('Calling handler for', topic, content)
                 this_.messageHandlerRegistry[topic](content)
             } else {
-                console.log(topic, 'not found')
+                console.debug('Topic not found:', topic)
             }
 
             if (reqId in this_.promises) {
@@ -119,6 +122,10 @@ export class StreamJamClient {
 
     registerMessageHandler(topic, handler) {
         this.messageHandlerRegistry[topic] = handler
+    }
+
+    removeMessageHandler(topic) {
+        delete this.messageHandlerRegistry[topic]
     }
 
     wsSend(topic, content=null) {

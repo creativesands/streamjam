@@ -25,6 +25,9 @@ class Component:
     class Script:
         ...
 
+    def __post_init__(self):
+        pass
+
     def __init__(self, id: str, parent_id: str, client: 'ClientHandler'):
         self.id = id
         self.__parent_id = parent_id
@@ -33,6 +36,8 @@ class Component:
         self.__state__ = {}
         self.__child_components__: tp.List[Component] = []
         self._register_handlers()
+
+        self.__post_init__()
 
     def __init_subclass__(cls, **kwargs):
         cls.__has_server__ = kwargs.get('server', True)

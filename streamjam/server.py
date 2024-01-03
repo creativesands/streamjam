@@ -80,7 +80,12 @@ class ClientHandler:
     async def msg_sender(self):
         while True:
             msg: Message = await self.msg_queue.get()
-            await self.ws.send(msg.serialize())
+            try:
+                await self.ws.send(msg.serialize())
+            except websockets.exceptions.ConnectionClosedError:
+                print('Connection Closed. Draining messages to client.')
+            except websockets.WebSocketException as exc:
+                print('Websocket Exception', exc)
 
     async def event_dispatcher(self):
         while True:

@@ -26,3 +26,41 @@ export class AsyncQueue {
         }
     }
 }
+
+
+export function autoscroll(node) {
+    let atBottom = true
+
+    // Function to scroll to the bottom
+    function scrollToBottom() {
+        if (atBottom) {
+            node.scrollTo({
+                top: node.scrollHeight,
+                behavior: 'smooth'
+            })
+        }
+    }
+
+    // Scroll to bottom initially
+    scrollToBottom()
+
+    // Handle scroll events
+    function handleScroll() {
+        // Check if the user has scrolled away from the bottom
+        atBottom = node.scrollHeight - node.clientHeight <= node.scrollTop + 1
+    }
+
+    // Add scroll event listener
+    node.addEventListener('scroll', handleScroll)
+
+    // Observe changes in the content of the node
+    const observer = new MutationObserver(scrollToBottom)
+    observer.observe(node, { childList: true, subtree: true })
+
+    return {
+        destroy() {
+            node.removeEventListener('scroll', handleScroll)
+            observer.disconnect()
+        }
+    }
+}

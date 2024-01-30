@@ -1,5 +1,6 @@
 <script>
     import { getContext } from "svelte"
+    import { autoscroll } from "./utils"
 
     const client = getContext('streamjam')
 
@@ -29,17 +30,13 @@
         }
     }
 
-    function toggleMessageExpand(e) {
-        e.currentTarget.classList
-    }
-
     setInterval(() => {
         networkLogs = client.devToolLogs
     }, 100)
 </script>
 
 
-<div class="container" class:open={isOpen} on:click={() => {isOpen = true}}>
+<div class="container" use:autoscroll class:open={isOpen} on:click={() => {isOpen = true}}>
     <div class="header">
         <div class="logo"></div>
         {#if isOpen}

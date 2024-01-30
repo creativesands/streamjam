@@ -5,6 +5,7 @@ import shutil
 import inspect
 import typing as tp
 from pathlib import Path
+from datetime import datetime
 from importlib.util import spec_from_file_location, module_from_spec
 
 from .component import Component
@@ -205,7 +206,7 @@ def build_project(base_path='.', output_path='.build'):
                 if file.startswith('__'):
                     continue
                 if file.endswith('.py'):
-                    print('>>> Transpiling:', file)
+                    print(f'[{datetime.now().strftime("%H:%M:%S")}] >>> Transpiling: ', file)
                     # Transpile Python files and save as .svelte
                     comp_name, transpiled_content = transpile_streamjam_to_svelte(src_file)
                     dest_file = dest_path / (comp_name + '.svelte')

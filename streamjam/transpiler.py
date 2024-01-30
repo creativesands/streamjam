@@ -92,9 +92,9 @@ def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List
         rel_imp_path = rel_parent / f'{imp_cls.__name__}.svelte'
         import_components.append(f"import {imp_cls.__name__} from './{rel_imp_path}'")
 
-    component_script = cls.Script.__doc__ or ''
-    svelte_html = cls.Layout.__doc__ or ''
-    svelte_css = cls.Style.__doc__ or ''
+    component_script = (cls.Script.__doc__ or '').replace('@\n', '', 1)
+    svelte_html = (cls.Layout.__doc__ or '').replace('@\n', '', 1)
+    svelte_css = (cls.Style.__doc__ or '').replace('@\n', '', 1)
     svelte_script = SCRIPT_TEMPLATE.format(
         import_components='\n    '.join(import_components),
         comp_id='"root"' if cls.__name__ == 'Root' else 'null',

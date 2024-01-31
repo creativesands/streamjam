@@ -37,8 +37,6 @@ class Component:
         self.__child_components__: tp.List[Component] = []
         self._register_handlers()
 
-        self.__post_init__()
-
     def __init_subclass__(cls, **kwargs):
         cls.__has_server__ = kwargs.get('server', True)
 
@@ -51,6 +49,9 @@ class Component:
             cls.__prop_defaults__[name] = default_value
             getter, setter = cls.__make_property(name)
             setattr(cls, name, property(getter, setter))
+
+        # register system event handlers
+        setattr(cls.on_disconnect, '$event_handler', True)
 
     @classmethod
     def __make_property(cls, name):
@@ -95,6 +96,10 @@ class Component:
         return handler
 
     def _register_handlers(self):
+        # register system events
+        self.__client.register_event_handler('$client_disconnect', self.on_disconnect)
+
+        # register custom events
         for attr_name in dir(self):
             handler = getattr(self, attr_name)
             if hasattr(handler, 'event_handler'):
@@ -118,6 +123,9 @@ class Component:
         self.__client.event_queue.put_nowait(Event(name, self, data))
 
     async def on_destroy(self):
+        pass
+
+    async def on_disconnect(self):
         pass
 
     async def __destroy__(self):

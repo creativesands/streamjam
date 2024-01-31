@@ -4,10 +4,16 @@ import traceback
 import websockets
 import typing as tp
 from collections import defaultdict
+from dataclasses import dataclass
 
 from .protocol import Message
 from .component import Component, Event
 from .transpiler import get_components_in_project
+
+
+@dataclass
+class ServerEvent:
+    name: str
 
 
 class ClientHandler:
@@ -17,7 +23,7 @@ class ClientHandler:
         self.component_map = component_map
         self.components: tp.Dict[str, Component] = {}
         self.msg_queue = asyncio.Queue()
-        self.event_queue: 'asyncio.Queue[Event]' = asyncio.Queue()
+        self.event_queue: 'asyncio.Queue[tp.Union[ServerEvent, Event]]' = asyncio.Queue()
         self.event_handlers = defaultdict(list)
         self.store_update_handlers: tp.Dict[tp.Tuple[str, str], tp.Callable] = {}
         asyncio.create_task(self.msg_sender())
@@ -39,6 +45,7 @@ class ClientHandler:
         comp_class = self.component_map[comp_type]
         component = comp_class(id=comp_id, parent_id=parent_id, client=self)
         component.__state__.update(props)
+        component.__post_init__()
         self.components[comp_id] = component
         parent = self.components[parent_id]
         parent.__child_components__.append(self.components[comp_id])
@@ -91,7 +98,10 @@ class ClientHandler:
         while True:
             event = await self.event_queue.get()
             for handler in self.event_handlers[event.name]:
-                asyncio.create_task(handler(event))
+                if hasattr(handler, '$event_handler'):  # system event
+                    asyncio.create_task(handler())
+                else:
+                    asyncio.create_task(handler(event))
 
     async def handle(self):
         try:
@@ -118,6 +128,7 @@ class ClientHandler:
         except Exception as e:
             print("Exception:", traceback.format_exc())
         finally:
+            self.event_queue.put_nowait(ServerEvent('$client_disconnect'))
             print('!!! Client disconnected:', self.ws.id)
 
 

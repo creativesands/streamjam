@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import shutil
@@ -23,7 +24,7 @@ from .component import Component
 """
 
 
-SCRIPT_TEMPLATE = open(os.path.dirname(__file__) + '/script_tmpl.html').read()
+SCRIPT_TEMPLATE = open(os.path.dirname(__file__) + '/svelte_component_template.html').read()
 
 
 def load_module(module_name, file_path):
@@ -92,10 +93,13 @@ def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List
         rel_imp_path = rel_parent / f'{imp_cls.__name__}.svelte'
         import_components.append(f"import {imp_cls.__name__} from './{rel_imp_path}'")
 
-    component_script = (cls.Script.__doc__ or '').replace('@\n', '', 1)
-    svelte_html = (cls.Layout.__doc__ or '').replace('@\n', '', 1)
-    svelte_css = (cls.Style.__doc__ or '').replace('@\n', '', 1)
-    svelte_script = SCRIPT_TEMPLATE.format(
+    svelte_code = (cls.Client.__doc__ or '').replace('@\n', '', 1)
+    script_tag_regex = r'<script[^>]*>([\s\S]*?)</script>'
+    svelte_script_tag = re.search(script_tag_regex, svelte_code)
+    svelte_html_css = re.sub(script_tag_regex, '', svelte_code)
+    svelte_js = svelte_script_tag.group(1) if svelte_script_tag else ''
+
+    svelte_content = SCRIPT_TEMPLATE.format(
         import_components='\n    '.join(import_components),
         comp_id='"root"' if cls.__name__ == 'Root' else 'null',
         is_root='true' if cls.__name__ == 'Root' else 'false',
@@ -109,14 +113,11 @@ def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List
         store_get='\n    '.join(store_get),
         store_set='\n    '.join(store_set),
         rpc_init='\n    '.join(rpc_init),
-        component_script=component_script
+        svelte_js=svelte_js,
+        svelte_html_css=svelte_html_css
     )
 
-    svelte_content = [svelte_script]
-    svelte_html and svelte_content.append(f'{svelte_html}')
-    svelte_css and svelte_content.append(f'<style>\n{svelte_css}\n</style>')
-
-    return cls.__name__, '\n\n'.join(svelte_content)
+    return cls.__name__, svelte_content
 
 
 def transpile_streamjam_to_svelte(file_path):

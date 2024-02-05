@@ -16,13 +16,7 @@ class Component:
     __prop_defaults__ = {}
     __has_server__ = True
 
-    class Layout:
-        ...
-
-    class Style:
-        ...
-
-    class Script:
+    class Client:
         ...
 
     def __post_init__(self):

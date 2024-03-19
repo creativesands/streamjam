@@ -209,7 +209,12 @@ def build_project(base_path='.', output_path='.build'):
                 if file.endswith('.py'):
                     print(f'[{datetime.now().strftime("%H:%M:%S")}] >>> Transpiling: ', file)
                     # Transpile Python files and save as .svelte
-                    comp_name, transpiled_content = transpile_streamjam_to_svelte(src_file)
+                    did_transpile = transpile_streamjam_to_svelte(src_file)
+                    if did_transpile:
+                        comp_name, transpiled_content = did_transpile
+                    else:
+                        # python file does not contain a streamjam component definition
+                        continue
                     dest_file = dest_path / (comp_name + '.svelte')
 
                     component_paths.append(dest_file.relative_to(components_dest))

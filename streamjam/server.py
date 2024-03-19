@@ -1,29 +1,32 @@
 import json
+import signal
 import asyncio
 import traceback
 import websockets
 import typing as tp
 from collections import defaultdict
-from dataclasses import dataclass
 
 from .protocol import Message
-from .component import Component, Event
+from .component import Component
+from .service import SocketService
+from .base import ServerEvent, ComponentEvent, ServiceBase
 from .transpiler import get_components_in_project
 
 
-@dataclass
-class ServerEvent:
-    name: str
-
-
 class ClientHandler:
-    def __init__(self, ws, component_map: tp.Dict[str, tp.Type[Component]] = None):
+    def __init__(
+            self,
+            ws: websockets.WebSocketServerProtocol,
+            component_map: tp.Dict[str, tp.Type[Component]],
+            service_map: tp.Dict[str, type(ServiceBase)]
+    ):
         self.ws = ws
         self.id = self.ws.path
         self.component_map = component_map
+        self.service_map = service_map
         self.components: tp.Dict[str, Component] = {}
         self.msg_queue = asyncio.Queue()
-        self.event_queue: 'asyncio.Queue[tp.Union[ServerEvent, Event]]' = asyncio.Queue()
+        self.event_queue: 'asyncio.Queue[ServerEvent | ComponentEvent]' = asyncio.Queue()
         self.event_handlers = defaultdict(list)
         self.store_update_handlers: tp.Dict[tp.Tuple[str, str], tp.Callable] = {}
         asyncio.create_task(self.msg_sender())
@@ -44,6 +47,7 @@ class ClientHandler:
     def add_component(self, comp_id, parent_id, comp_type, props):
         comp_class = self.component_map[comp_type]
         component = comp_class(id=comp_id, parent_id=parent_id, client=self)
+        self.assign_services(component)
         component.__state__.update(props)
         component.__post_init__()
         self.components[comp_id] = component
@@ -53,6 +57,10 @@ class ClientHandler:
     async def destroy_component(self, comp_id):
         await self.components[comp_id].__destroy__()
         del self.components[comp_id]
+
+    def assign_services(self, component: Component):
+        for attr_name, service_name in component.__services__.items():
+            setattr(component, attr_name, self.service_map[service_name])
 
     def update_store(self, comp_id, store_name, value):
         self.send_msg(Message(('store-value', comp_id, store_name), value))
@@ -137,30 +145,51 @@ class StreamJam:
             self,
             name: str = "StreamJam",
             host: str = "localhost",
-            port: int = 7755
+            port: int = 7755,
+            services: tp.Dict[str, tp.Tuple[tp.Type[ServiceBase], tp.Dict]] = None
     ):
         self.name = name
         self.host = host
         self.port = port
         self.addr = f'ws://{host}:{port}'
+        self.service_map: tp.Dict[str, ServiceBase] = {}
+        self.init_services(services)
         self.clients: tp.Dict[str, ClientHandler] = {}
         self.component_map = get_components_in_project(name)
 
-    async def router(self, ws):
+    def init_services(self, services: tp.Dict[str, tp.Tuple[tp.Type[ServiceBase], tp.Dict]]):
+        for service_name, service_config in services.items():
+            service_cls, service_params = service_config
+            self.service_map[service_name] = service_cls(**service_params)
+
+        if 'SocketService' not in services:
+            self.service_map['SocketService'] = SocketService()
+
+    async def router(self, ws: websockets.WebSocketServerProtocol):
         print('>>> Received new connection:', ws.path, ws.id, len(self.clients))
-        if ws.path not in self.clients:
+
+        socket_service = tp.cast(SocketService, self.service_map['SocketService'])
+        connection_id = await socket_service.connect(ws)
+        if not connection_id:
+            return  # returning from the router will close the connection
+        elif connection_id not in self.clients:
             print('No prior state')
-            self.clients[ws.path] = ClientHandler(ws, self.component_map)
+            self.clients[connection_id] = ClientHandler(ws, self.component_map, self.service_map)
         else:
-            print('Prior state: \n', self.clients[ws.path].components)
-        client = self.clients[ws.path]
+            print('Prior state: \n', self.clients[connection_id].components)
+
+        client = self.clients[connection_id]
         client.ws = ws
         # todo: add try-catch to remove client on client-disconnect after timeout
         client.send_state()  # TODO: can this be SSR'd instead?
         await client.handle()
 
     async def serve(self):
+        # Set the stop condition when receiving SIGTERM.
+        loop = asyncio.get_running_loop()
+        stop = loop.create_future()
+        loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
+
         async with websockets.serve(self.router, self.host, self.port):
             print(f'Running StreamJam server on {self.addr!r}')
-            await asyncio.Future()
-
+            await stop

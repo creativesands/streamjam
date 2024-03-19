@@ -1,19 +1,14 @@
 import typing as tp
-from dataclasses import dataclass
+
+from .base import ServiceBase, ComponentEvent
 
 if tp.TYPE_CHECKING:
     from .server import ClientHandler
 
 
-@dataclass
-class Event:
-    name: str
-    source: 'Component'
-    data: tp.Any
-
-
 class Component:
     __prop_defaults__ = {}
+    __services__ = {}
     __has_server__ = True
 
     class Client:
@@ -37,12 +32,16 @@ class Component:
         if not hasattr(cls, '__annotations__'):
             cls.__annotations__ = {}
 
+        cls.__services__ = {}
         cls.__prop_defaults__ = {}
-        for name in cls.__annotations__:
+        for name, ann_type in cls.__annotations__.items():
             default_value = cls.__dict__.get(name, ...)
-            cls.__prop_defaults__[name] = default_value
-            getter, setter = cls.__make_property(name)
-            setattr(cls, name, property(getter, setter))
+            if issubclass(ann_type, ServiceBase):
+                cls.__services__[name] = default_value
+            else:
+                cls.__prop_defaults__[name] = default_value
+                getter, setter = cls.__make_property(name)
+                setattr(cls, name, property(getter, setter))
 
         # register system event handlers
         setattr(cls.on_disconnect, '$event_handler', True)
@@ -114,7 +113,7 @@ class Component:
                 self.__client.remove_store_update_handler(self.id, store_name)
 
     def dispatch(self, name, data=None):
-        self.__client.event_queue.put_nowait(Event(name, self, data))
+        self.__client.event_queue.put_nowait(ComponentEvent(name, self, data))
 
     async def on_destroy(self):
         pass

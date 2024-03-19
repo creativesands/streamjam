@@ -1,23 +1,43 @@
+from .server import (
+    StreamJam,
+    ServiceBase
+)
+
+from .service import (
+    SocketService
+)
+
+from .base import (
+    Service
+)
+
+from .component import (
+    Component,
+    ComponentEvent as Event
+)
+
+
 """
 Todos:
-    - [ ] use hash('component_path') to represent component type
-    - [?] deal with duplicate component names (no longer required!)
+    - [ ] client rpc-response handler
+    - [ ] setup logging
+    - [ ] rpc generator in FE if backend is async generator
+    - [ ] server dev mode with transpilation based on 'watchfiles' module
+    - [ ] jsondiff store updates
+    - [ ] move to AnyIO
+    - [ ] error handling and propagation
     - [ ] close connection but maintain state for a preset time
-    - [x] delete local component objects when delete in FE
     - [ ] with block batch update in both FE and BE
     - [ ] global state stores
-    - [ ] error handling and propagation
-    - [x] event dispatch from methods
-    - [ ] client rpc-response handler
-    - [x] on_update(prop) handler in component
     - [ ] batch calls for create-component and remove-component
-    - [ ] jsondiff store updates
     - [ ] server on: add-component if no id then add to client_components pool which can be cleared on ws close
     - [ ] debounce store-update of same component & store
-    - [ ] server dev mode with transpilation based on 'watchfiles' module
+    - [ ] ability to turn off store-sync on select stores
+    - [ ] debounce rpc calls with decorator
     - [ ] Hot Module Replacement: reload all server instances of component and copy over state if all props exists
-    - [ ] rpc generator in FE if backend is async generator
+    - [?] use hash('component_path') to represent component type (no longer required!)
+    - [?] deal with duplicate component names (no longer required!)
+    - [x] event dispatch from methods
+    - [x] on_update(prop) handler in component
+    - [x] delete local component objects when delete in FE
 """
-
-from .server import StreamJam
-from .component import Component, Event

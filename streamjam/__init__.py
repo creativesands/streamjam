@@ -4,7 +4,7 @@ from .server import (
 
 from .service import (
     Service,
-    ServiceProxy,
+    ServiceClient,
     SocketService
 )
 

@@ -10,6 +10,9 @@ if tp.TYPE_CHECKING:
     from .server import ClientHandler
 
 
+T = tp.TypeVar('T')
+
+
 @dataclass
 class ServiceConfig:
     service_cls: tp.Type
@@ -140,6 +143,14 @@ class ServiceProxy(ServiceBase):
 
     def __getattr__(self, method):
         return self.__proxy_method_call(method)
+
+
+class ServiceClientFactory:
+    def __call__(self, cls: tp.Type[T], name: str) -> T:
+        return ServiceProxy(name)
+
+
+ServiceClient = ServiceClientFactory()
 
 
 class ServiceMethodProxy:

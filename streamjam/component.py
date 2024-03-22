@@ -54,12 +54,17 @@ class Component:
         cls.__prop_defaults__ = {}
         for name, ann_type in cls.__annotations__.items():
             default_value = cls.__dict__.get(name, ...)
-            if issubclass(ann_type, Service):
+            if issubclass(ann_type, (Service, ServiceProxy)):
                 cls.__services__[name] = default_value
             else:
                 cls.__prop_defaults__[name] = default_value
                 getter, setter = cls.__make_property(name)
                 setattr(cls, name, property(getter, setter))
+
+        for attr_name in dir(cls):
+            item = getattr(cls, attr_name)
+            if isinstance(item, ServiceProxy):
+                cls.__services__[attr_name] = item
 
         # register system event handlers
         setattr(cls.on_disconnect, '$event_handler', True)
@@ -133,6 +138,7 @@ class Component:
             handler = getattr(self, attr_name)
 
             if isinstance(handler, ServiceProxy):
+                print('ignoring', handler)
                 continue  # ignore service proxy attributes
             if hasattr(handler, 'event_handler'):
                 event_name = getattr(handler, 'event_handler')

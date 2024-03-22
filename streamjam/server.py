@@ -68,7 +68,6 @@ class ClientHandler:
         for attr_name in component.__services__:
             service_proxy = getattr(component, attr_name)
             service_proxy.__init_proxy__(self)
-        pass
 
     def update_store(self, comp_id, store_name, value):
         self.send_msg(Message(('store-value', comp_id, store_name), value))

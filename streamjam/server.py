@@ -1,3 +1,4 @@
+import time
 import json
 import signal
 import asyncio
@@ -6,31 +7,35 @@ import websockets
 import typing as tp
 from collections import defaultdict
 
+from .pubsub import PubSub
 from .protocol import Message
 from .component import Component
-from .service import SocketService
-from .base import ServerEvent, ComponentEvent, ServiceBase
+from .base import ServerEvent, ComponentEvent
 from .transpiler import get_components_in_project
+from .service import ServiceConfig, SocketService, ServiceExecutor, AsyncServiceExecutor
 
 
 class ClientHandler:
     def __init__(
             self,
             ws: websockets.WebSocketServerProtocol,
-            component_map: tp.Dict[str, tp.Type[Component]],
-            service_map: tp.Dict[str, type(ServiceBase)]
+            pubsub: PubSub,
+            component_map: dict[str, tp.Type[Component]],
+            service_executors: dict[str, type(ServiceExecutor)]
     ):
         self.ws = ws
         self.id = self.ws.path
+        self.pubsub = pubsub
         self.component_map = component_map
-        self.service_map = service_map
-        self.components: tp.Dict[str, Component] = {}
+        self.service_executors: dict[str, ServiceExecutor] = service_executors
+        self.components: dict[str, Component] = {}
         self.msg_queue = asyncio.Queue()
         self.event_queue: 'asyncio.Queue[ServerEvent | ComponentEvent]' = asyncio.Queue()
         self.event_handlers = defaultdict(list)
-        self.store_update_handlers: tp.Dict[tp.Tuple[str, str], tp.Callable] = {}
-        asyncio.create_task(self.msg_sender())
-        asyncio.create_task(self.event_dispatcher())
+        self.store_update_handlers: dict[tuple[str, str], tp.Callable] = {}
+        self.task_registry: set[asyncio.Task] = set()
+        self.create_task(self.msg_sender(), name='$msg_sender')  # $ indicates "system" task
+        self.create_task(self.event_dispatcher(), name='$event_dispatcher')
 
     def register_event_handler(self, event: str, handler: tp.Callable):
         self.event_handlers[event].append(handler)
@@ -44,12 +49,13 @@ class ClientHandler:
     def remove_store_update_handler(self, id: str, store: str):
         del self.store_update_handlers[(id, store)]
 
-    def add_component(self, comp_id, parent_id, comp_type, props):
+    async def add_component(self, comp_id, parent_id, comp_type, props):
         comp_class = self.component_map[comp_type]
         component = comp_class(id=comp_id, parent_id=parent_id, client=self)
+        self.pubsub.register(f'{self.id}/{component.id}', component.__message_queue__)
         self.assign_services(component)
         component.__state__.update(props)
-        component.__post_init__()
+        await component.__post_init__()
         self.components[comp_id] = component
         parent = self.components[parent_id]
         parent.__child_components__.append(self.components[comp_id])
@@ -59,8 +65,10 @@ class ClientHandler:
         del self.components[comp_id]
 
     def assign_services(self, component: Component):
-        for attr_name, service_name in component.__services__.items():
-            setattr(component, attr_name, self.service_map[service_name])
+        for attr_name in component.__services__:
+            service_proxy = getattr(component, attr_name)
+            service_proxy.__init_proxy__(self)
+        pass
 
     def update_store(self, comp_id, store_name, value):
         self.send_msg(Message(('store-value', comp_id, store_name), value))
@@ -77,7 +85,10 @@ class ClientHandler:
     def set_store(self, comp_id, store_name, value):
         # Note: store property's value is set by return value of on_update handler if it exists
         if (comp_id, store_name) in self.store_update_handlers:
-            asyncio.create_task(self.exec_update_store_handler(comp_id, store_name, value))
+            self.create_task(
+                self.exec_update_store_handler(comp_id, store_name, value),
+                name='$exec_update_store_handler'
+            )
         else:
             self.components[comp_id].__state__[store_name] = value
 
@@ -102,14 +113,35 @@ class ClientHandler:
             except websockets.WebSocketException as exc:
                 print('Websocket Exception', exc)
 
+    async def execute_service_method(self, future, service_name, method_name, args, kwargs):
+        service_executor = self.service_executors[service_name]
+        result = await service_executor.execute_method(method_name, *args, **kwargs)  # todo: handle exceptions
+        future.set_result(result)
+
+    def trigger_service_method(self, service_name, method_name, args, kwargs):
+        task_id = f'SERVICE/{service_name}/{method_name}@{time.time()}'
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+        self.create_task(
+            self.execute_service_method(future, service_name, method_name, args, kwargs),
+            name=task_id
+        )
+        return future
+
+    def create_task(self, coro, name='$task') -> asyncio.Task:
+        task = asyncio.create_task(coro, name=name)
+        self.task_registry.add(task)
+        task.add_done_callback(self.task_registry.discard)
+        return task
+
     async def event_dispatcher(self):
         while True:
             event = await self.event_queue.get()
             for handler in self.event_handlers[event.name]:
                 if hasattr(handler, '$event_handler'):  # system event
-                    asyncio.create_task(handler())
+                    self.create_task(handler())
                 else:
-                    asyncio.create_task(handler(event))
+                    self.create_task(handler(event))
 
     async def handle(self):
         try:
@@ -119,11 +151,11 @@ class ClientHandler:
 
                 if topic == 'add-component':
                     comp_id, parent_id, comp_type, props = content
-                    self.add_component(comp_id, parent_id, comp_type, props)
+                    await self.add_component(comp_id, parent_id, comp_type, props)
 
                 elif topic == 'exec-rpc':
                     comp_id, rpc_name, args = content
-                    asyncio.create_task(self.exec_rpc(req_id, comp_id, rpc_name, args))
+                    self.create_task(self.exec_rpc(req_id, comp_id, rpc_name, args), name='$exec_rpc')
 
                 elif topic == 'store-set':
                     comp_id, store_name, value = content
@@ -131,7 +163,7 @@ class ClientHandler:
 
                 elif topic == 'destroy-component':
                     (comp_id,) = content
-                    asyncio.create_task(self.destroy_component(comp_id))
+                    self.create_task(self.destroy_component(comp_id), name='$destroy_component')
 
         except Exception as e:
             print("Exception:", traceback.format_exc())
@@ -146,35 +178,40 @@ class StreamJam:
             name: str = "StreamJam",
             host: str = "localhost",
             port: int = 7755,
-            services: tp.Dict[str, tp.Tuple[tp.Type[ServiceBase], tp.Dict]] = None
+            services: dict[str, ServiceConfig] = None
     ):
         self.name = name
         self.host = host
         self.port = port
         self.addr = f'ws://{host}:{port}'
-        self.service_map: tp.Dict[str, ServiceBase] = {}
-        self.init_services(services)
-        self.clients: tp.Dict[str, ClientHandler] = {}
+        self.service_executors: dict[str, type(ServiceExecutor)] = {}
+        self.clients: dict[str, ClientHandler] = {}
         self.component_map = get_components_in_project(name)
+        self.pubsub = PubSub()
+        self.init_services(services)
 
-    def init_services(self, services: tp.Dict[str, tp.Tuple[tp.Type[ServiceBase], tp.Dict]]):
-        for service_name, service_config in services.items():
-            service_cls, service_params = service_config
-            self.service_map[service_name] = service_cls(**service_params)
-
+    def init_services(self, services: dict[str, ServiceConfig]):
         if 'SocketService' not in services:
-            self.service_map['SocketService'] = SocketService()
+            services['SocketService'] = ServiceConfig(SocketService, (), {})
+
+        for service_name, service_config in services.items():
+            self.service_executors[service_name] = AsyncServiceExecutor(service_config, service_name, self.pubsub)
 
     async def router(self, ws: websockets.WebSocketServerProtocol):
         print('>>> Received new connection:', ws.path, ws.id, len(self.clients))
 
-        socket_service = tp.cast(SocketService, self.service_map['SocketService'])
-        connection_id = await socket_service.connect(ws)
+        socket_service = self.service_executors['SocketService']
+        connection_id = await socket_service.execute_method('connect', ws)
         if not connection_id:
             return  # returning from the router will close the connection
         elif connection_id not in self.clients:
             print('No prior state')
-            self.clients[connection_id] = ClientHandler(ws, self.component_map, self.service_map)
+            self.clients[connection_id] = ClientHandler(
+                ws,
+                self.pubsub,
+                self.component_map,
+                self.service_executors
+            )
         else:
             print('Prior state: \n', self.clients[connection_id].components)
 

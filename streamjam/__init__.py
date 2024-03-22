@@ -1,19 +1,20 @@
 from .server import (
-    StreamJam,
-    ServiceBase
+    StreamJam
 )
 
 from .service import (
+    Service,
+    ServiceProxy,
     SocketService
 )
 
 from .base import (
-    Service
+    ComponentEvent,
+    ServiceEvent
 )
 
 from .component import (
-    Component,
-    ComponentEvent as Event
+    Component
 )
 
 

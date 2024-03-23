@@ -1,5 +1,7 @@
 # StreamJam
 
+![StreamJam Logo](docs/streamjam.svg)
+
 StreamJam is a structured and slightly opinionated framework that brings websocket-based 
 Remote Procedure Call (RPC) architecture to web development. It enables you to create full-stack 
 stateful components that seamlessly bridge the gap between the frontend and backend, allowing you 

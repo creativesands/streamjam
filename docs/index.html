@@ -5,93 +5,151 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StreamJam - Unified Pythonic Web Development</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f9;
-            color: #333;
-        }
-        header {
-            background-color: #333;
-            color: #fff;
-            padding: 20px 0;
-            text-align: center;
-        }
-        section {
-            padding: 40px 5%;
-        }
-        h1, h2 {
-            margin-top: 0;
-        }
-        a {
-            color: #0077cc;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        /* Code block styling */
-        pre {
-            background-color: #e8e8e8;
-            padding: 15px;
-            overflow-x: auto;
-            border-radius: 5px;
-            font-size: 0.9em;
-        }
-        code {
-            font-family: 'Inter', monospace;
-        }
-    </style>
+    <link rel="stylesheet" href="retro.css">
 </head>
 <body>
-<header>
-    <h1>StreamJam</h1>
-    <p>Unifying frontend and backend into one Pythonic experience.</p>
-</header>
+<h1 id="streamjam">StreamJam</h1>
+<p><img src="streamjam.svg" alt="StreamJam Logo"></p>
+<p>StreamJam is a structured and slightly opinionated framework that brings websocket-based
+    Remote Procedure Call (RPC) architecture to web development. It enables you to create full-stack
+    stateful components that seamlessly bridge the gap between the frontend and backend, allowing you
+    to develop modern, highly interactive web applications with a tighter coupling and
+    perceived state synchronization.</p>
+<h2 id="features">Features</h2>
+<ul>
+    <li><strong>Full-stack Components</strong>: Build components that combine server-side logic with client-side UI, providing a unified development experience.</li>
+    <li><strong>Real-time Updates</strong>: Create real-time, collaborative applications with seamless communication and state updates across multiple clients.</li>
+    <li><strong>Websocket-based RPC and Streaming</strong>: Leverage the power of RPC over WebSockets to facilitate direct method invocation, bringing your web development experience closer to real programming. May REST, rest in peace.</li>
+    <li><strong>Automatic State Synchronization</strong>: Enjoy automatic state synchronization between the server and client, eliminating the need for explicit data-binding or state management code.</li>
+</ul>
+<hr>
+<pre><code class="language-python">from streamjam import Component
 
-<section>
-    <h2>Welcome to StreamJam</h2>
-    <p>
-        StreamJam allows developers to craft both the frontend and backend of web applications using just Python. Inspired by the reactivity of modern frameworks and the real-time capabilities of today's best tools, StreamJam offers a streamlined approach to web development.
-    </p>
-    <p>
-        Dive into our <a href="#">documentation</a> or explore some <a href="#">sample projects</a> to get started.
-    </p>
-</section>
+class Counter(Component):                       #  StreamJam Component definition.
+    count: int = 0                              #  Component state declaration.
 
-<section>
-    <h2>Sample Code</h2>
-    <p>Here's a simple countdown timer using StreamJam:</p>
-    <pre><code>from streamjam import pie
+    class Client:                               #  Client side Svelte code embedded within Python.
+        &quot;&quot;&quot;@                                    #  @ marks this docstring as Svelte code.
+        &lt;div&gt;Count: {count}&lt;/div&gt;               // Component state is available to use here directly.
+        &lt;button on:click={inc}&gt;Add 1&lt;/button&gt;   // Call methods defined as RPC for event handling and more.
+        &quot;&quot;&quot;
 
-template = """
-&lt;div class="countdown-timer"&gt;
-    &lt;h1&gt;{title}&lt;/h1&gt;
-    &lt;p&gt;Time left: {time_left} seconds&lt;/p&gt;
-    &lt;button onclick={start}&gt;Start&lt;/button&gt;
-    &lt;button onclick={stop}&gt;Stop&lt;/button&gt;
-&lt;/div&gt;
-"""
+    @Component.rpc
+    async def inc(self):
+        self.count += 1                         # Assignments to component state are auto-synced with the client.
+</code></pre>
+<hr>
+<h2 id="setup-for-developers">Setup for Developers</h2>
+<h3 id="setting-up-library">Setting up library</h3>
+<ul>
+    <li>Clone Streamjam from Github</li>
+    <li><code>pip install -e .</code></li>
+    <li>cd to <code>javascript/streamjam</code></li>
+    <li><code>npm i</code></li>
+    <li><code>npm link</code></li>
+</ul>
+<h3 id="streamjam-vscode-plugin">StreamJam VSCode Plugin</h3>
+<p>StreamJam comes with a VSCode plugin that provides syntax highlighting and intellisense for
+    Svelte code that is embedded within a streamjam component&#39;s python file.</p>
+<ul>
+    <li><a href="https://marketplace.visualstudio.com/items?itemName=Creativesands.streamjam-tools">Install StreamJam Tools</a></li>
+</ul>
+<h3 id="creating-new-project">Creating new project</h3>
+<ul>
+    <li>Run the following command to create a new StreamJam project:<br><code>streamjam create</code><ul>
+        <li>project_name: Simple StreamJam</li>
+        <li>project_slug: simple_streamjam</li>
+        <li>project_slug: Simple project to get started with StreamJam</li>
+    </ul>
+    </li>
+</ul>
+<p>Once the project is created, create a new terminal for each of the following commands:</p>
+<ul>
+    <li><strong>StreamJam Compiler</strong>:<br>This command will watch for changes in your project and build the corresponding frontend files.<ul>
+        <li><code>cd simple_streamjam</code></li>
+        <li><code>streamjam build</code></li>
+    </ul>
+    </li>
+    <li><strong>StreamJam Frontend Setup</strong>: <ul>
+        <li><code>cd .build</code></li>
+        <li><code>npm i</code></li>
+        <li><code>npm link streamjam</code></li>
+        <li><code>npm run dev</code></li>
+    </ul>
+    </li>
+    <li><strong>StreamJam Server</strong>:<ul>
+        <li><code>cd ../..</code> Parent of simple_streamjam directory</li>
+        <li><code>python -m simple_streamjam.main</code></li>
+        <li>The server does not yet auto-reload on changes. Use ctrl-c to terminate and restart.</li>
+    </ul>
+    </li>
+</ul>
+<p>Open the project in VSCode. You&#39;re now ready to build some awesome stuff.</p>
+<hr>
+<h2 id="streamjam--a-crash-course">StreamJam — A Crash Course</h2>
+<h3 id="project-structure">Project Structure</h3>
+<p>The following is the file structure created by <code>streamjam create</code> when creating a new project.</p>
+<pre><code class="language-text">project_home/
+├── main.py
+├── components/
+│   └── root.py
+├── public/
+│   └── streamjam.svg
+├── package.json
+├── requirements.txt
+│--------------------------
+├── .build/
+│   ├── index.html
+│   ├── project.json
+│   ├── src/
+│   │   ├── App.svelte
+│   │   ├── main.js
+│   │   └── components/
+│   │       └── Root.svelte
+│   └── public/
+│       └── streamjam.svg
+</code></pre>
+<p>The contents of <code>.build</code> are created by <code>streamjam build</code> command. Notice that python files in
+    the components directory gets compiled to <code>.svelte</code> files if they contain a streamjam component
+    class definition. </p>
+<h3 id="creating-a-new-streamjam-component">Creating a new StreamJam component</h3>
+<p>StreamJam components must be placed within the <code>components</code> directory. <code>root.py</code> defines the <code>Root</code>
+    component of the application. Let&#39;s create a basic hello-world Root component.</p>
+<pre><code class="language-python"># root.py
+from streamjam import Component
 
-class Component:
-    title: pie[str] = "New Timer"
-    time_left: pie[int] = 10
-    interval = None
+class Root(Component):
+    name: str = &#39;World&#39;
 
-    def start(self):
-        self.interval = setInterval(self.tick, 1000)
+    class Client:
+        &quot;&quot;&quot;@
+        &lt;p&gt;What is your name: &lt;input type=&quot;text&quot; bind:value={name} /&gt;&lt;/p&gt;
+        &lt;h2&gt;Hello {name}&lt;/h2&gt;
 
-    def tick(self):
-        if self.time_left &gt; 0:
-            self.time_left -= 1
-        else:
-            self.stop()
-
-    def stop(self):
-        clearInterval(self.interval)
-        self.interval = None</code></pre>
-</section>
+        &lt;style&gt;
+        h2 { color: #8BC34A; }
+        &lt;/style&gt;
+        &quot;&quot;&quot;
+</code></pre>
+<p>On save of root.py, <code>streamjam build</code> will compile this to <code>Root.svelte</code> file in the build directory.
+    Follow the url displayed by <code>npm run dev</code> to view the app in your browser. As you type text into the
+    input field, you should see it immediately being reflected in the greeting below.</p>
+<blockquote>
+    <p>Note: please restart the python server to run the updated code.</p>
+</blockquote>
+<p>The following are the main concepts of StreamJam:</p>
+<ul>
+    <li>Component<ul>
+        <li>Client</li>
+        <li>RPC Method</li>
+        <li>Event Dispatch</li>
+        <li>Event Handler</li>
+        <li>State Update Handler</li>
+        <li>Service Event Handler</li>
+    </ul>
+    </li>
+    <li>Service</li>
+    <li>StreamJam DevTools</li>
+</ul>
 </body>
 </html>

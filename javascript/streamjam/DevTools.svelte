@@ -154,7 +154,7 @@
         height: 20px;
         width: 20px;
         background-position: center;
-        background-image: url("/streamjam.svg");
+        background-image: url("/docs/streamjam.svg");
         background-size: contain;
         background-repeat: no-repeat;
         cursor: pointer;

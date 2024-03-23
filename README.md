@@ -145,3 +145,4 @@ The following are the main concepts of StreamJam:
   - State Update Handler
   - Service Event Handler
 - Service
+- StreamJam DevTools

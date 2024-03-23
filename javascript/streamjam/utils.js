@@ -36,7 +36,7 @@ export function autoscroll(node) {
         if (atBottom) {
             node.scrollTo({
                 top: node.scrollHeight,
-                behavior: 'smooth'
+                // behavior: 'smooth'
             })
         }
     }

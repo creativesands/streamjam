@@ -7,7 +7,7 @@ from .pubsub import PubSub
 from .base import final, deny_final_method_override, ServiceEvent
 
 if tp.TYPE_CHECKING:
-    from .server import ClientHandler
+    from .server import SessionHandler
 
 
 T = tp.TypeVar('T')
@@ -88,22 +88,18 @@ class Service(ServiceBase):
         """Shadow for Proxy, does nothing"""
         raise AttributeError("'connect' method cannot be called for Service object.")
 
-    @final
-    def _register_client(self):
-        ...
-
 
 class ServiceProxy(ServiceBase):
     def __init__(self, service_name: str):
         self.__service_name__ = service_name
-        self.__client_handler: 'tp.Optional[ClientHandler]' = None
+        self.__session_handler: 'tp.Optional[SessionHandler]' = None
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         deny_final_method_override(cls, Service)
 
-    def __init_proxy__(self, client_handler: 'ClientHandler'):
-        self.__client_handler = client_handler
+    def __init_proxy__(self, session_handler: 'SessionHandler'):
+        self.__session_handler = session_handler
 
     @final
     def dispatch(self, name: str, data=None, to: 'str | list[str]' = ...):
@@ -139,7 +135,7 @@ class ServiceProxy(ServiceBase):
         raise NotImplementedError
 
     def __proxy_method_call(self, method_name):
-        return ServiceMethodProxy(self.__service_name__, method_name, self.__client_handler)
+        return ServiceMethodProxy(self.__service_name__, method_name, self.__session_handler)
 
     def __getattr__(self, method):
         return self.__proxy_method_call(method)
@@ -154,13 +150,13 @@ ServiceClient = ServiceClientFactory()
 
 
 class ServiceMethodProxy:
-    def __init__(self, service_name, method_name, client_handler):
+    def __init__(self, service_name, method_name, session_handler):
         self.service_name = service_name
         self.method_name = method_name
-        self.client_handler = client_handler
+        self.session_handler = session_handler
 
     async def __call__(self, *args, **kwargs):
-        return await self.client_handler.trigger_service_method(self.service_name, self.method_name, args, kwargs)
+        return await self.session_handler.trigger_service_method(self.service_name, self.method_name, args, kwargs)
 
 
 class ServiceExecutor:

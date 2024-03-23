@@ -6,7 +6,7 @@ from .base import ComponentEvent, final
 from .service import Service, ServiceProxy
 
 if tp.TYPE_CHECKING:
-    from .server import ClientHandler
+    from .server import SessionHandler
 
 
 class Component:
@@ -14,18 +14,18 @@ class Component:
     __services__ = {}
     __has_server__ = True
 
-    class Client:
+    class UI:
         ...
 
     async def __post_init__(self):
         pass
 
     @final
-    def __init__(self, id: str, parent_id: str, client: 'ClientHandler'):
+    def __init__(self, id: str, parent_id: str, session: 'SessionHandler'):
         self.id = id
         self.__parent_id = parent_id
-        self.__client = client
-        self._client = client
+        self.__session = session
+        self._session = session
 
         self.__state__ = {}
         self.__child_components__: tp.List[Component] = []
@@ -78,7 +78,7 @@ class Component:
 
         def setter(self, value):
             self.__state__.__setitem__(name, value)
-            self.__client.update_store(self.id, name, value)
+            self.__session.update_store(self.id, name, value)
 
         return getter, setter
 
@@ -131,7 +131,7 @@ class Component:
 
     def _register_handlers(self):
         # register system events
-        self.__client.register_event_handler('$client_disconnect', self.on_disconnect)
+        self.__session.register_event_handler('$session_disconnect', self.on_disconnect)
 
         # register custom events
         for attr_name in dir(self):
@@ -142,14 +142,14 @@ class Component:
                 continue  # ignore service proxy attributes
             if hasattr(handler, 'event_handler'):
                 event_name = getattr(handler, 'event_handler')
-                self.__client.register_event_handler(event_name, handler)
+                self.__session.register_event_handler(event_name, handler)
             if hasattr(handler, 'store_update_handler'):
                 store_name = getattr(handler, 'store_update_handler')
-                self.__client.register_store_update_handler(self.id, store_name, handler)
+                self.__session.register_store_update_handler(self.id, store_name, handler)
             if hasattr(handler, 'service_event_handler'):
                 event_name, service_proxy = getattr(handler, 'service_event_handler')
-                self.__client.pubsub.subscribe(
-                    sid=f'{self.__client.id}/{self.id}',
+                self.__session.pubsub.subscribe(
+                    sid=f'{self.__session.id}/{self.id}',
                     channel=f'$Service/{service_proxy.__service_name__}',
                     topic=event_name
                 )
@@ -160,14 +160,14 @@ class Component:
             handler = getattr(self, attr_name)
             if hasattr(handler, 'event_handler'):
                 event_name = getattr(handler, 'event_handler')
-                self.__client.remove_event_handler(event_name, handler)
+                self.__session.remove_event_handler(event_name, handler)
             if hasattr(handler, 'store_update_handler'):
                 store_name = getattr(handler, 'store_update_handler')
-                self.__client.remove_store_update_handler(self.id, store_name)
+                self.__session.remove_store_update_handler(self.id, store_name)
 
     @final
     def dispatch(self, name, data=None):
-        self.__client.event_queue.put_nowait(ComponentEvent(name, self, data))
+        self.__session.event_queue.put_nowait(ComponentEvent(name, self, data))
 
     async def on_destroy(self):
         pass
@@ -179,4 +179,4 @@ class Component:
     async def __destroy__(self):
         await self.on_destroy()
         self._remove_handlers()
-        self.__client.pubsub.quit(self.id)
+        self.__session.pubsub.quit(self.id)

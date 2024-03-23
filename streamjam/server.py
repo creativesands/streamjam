@@ -15,7 +15,7 @@ from .transpiler import get_components_in_project
 from .service import ServiceConfig, SocketService, ServiceExecutor, AsyncServiceExecutor
 
 
-class ClientHandler:
+class SessionHandler:
     def __init__(
             self,
             ws: websockets.WebSocketServerProtocol,
@@ -51,7 +51,7 @@ class ClientHandler:
 
     async def add_component(self, comp_id, parent_id, comp_type, props):
         comp_class = self.component_map[comp_type]
-        component = comp_class(id=comp_id, parent_id=parent_id, client=self)
+        component = comp_class(id=comp_id, parent_id=parent_id, session=self)
         self.pubsub.register(f'{self.id}/{component.id}', component.__message_queue__)
         self.assign_services(component)
         component.__state__.update(props)
@@ -108,7 +108,7 @@ class ClientHandler:
             try:
                 await self.ws.send(msg.serialize())
             except websockets.exceptions.ConnectionClosedError:
-                print('Connection Closed. Draining messages to client.')
+                print('Connection Closed. Draining messages to session client.')
             except websockets.WebSocketException as exc:
                 print('Websocket Exception', exc)
 
@@ -167,7 +167,7 @@ class ClientHandler:
         except Exception as e:
             print("Exception:", traceback.format_exc())
         finally:
-            self.event_queue.put_nowait(ServerEvent('$client_disconnect'))
+            self.event_queue.put_nowait(ServerEvent('$session_disconnect'))
             print('!!! Client disconnected:', self.ws.id)
 
 
@@ -184,7 +184,7 @@ class StreamJam:
         self.port = port
         self.addr = f'ws://{host}:{port}'
         self.service_executors: dict[str, type(ServiceExecutor)] = {}
-        self.clients: dict[str, ClientHandler] = {}
+        self.sessions: dict[str, SessionHandler] = {}
         self.component_map = get_components_in_project(name)
         self.pubsub = PubSub()
         self.init_services(services)
@@ -197,28 +197,28 @@ class StreamJam:
             self.service_executors[service_name] = AsyncServiceExecutor(service_config, service_name, self.pubsub)
 
     async def router(self, ws: websockets.WebSocketServerProtocol):
-        print('>>> Received new connection:', ws.path, ws.id, len(self.clients))
+        print('>>> Received new connection:', ws.path, ws.id, len(self.sessions))
 
         socket_service = self.service_executors['SocketService']
         connection_id = await socket_service.execute_method('connect', ws)
         if not connection_id:
             return  # returning from the router will close the connection
-        elif connection_id not in self.clients:
+        elif connection_id not in self.sessions:
             print('No prior state')
-            self.clients[connection_id] = ClientHandler(
+            self.sessions[connection_id] = SessionHandler(
                 ws,
                 self.pubsub,
                 self.component_map,
                 self.service_executors
             )
         else:
-            print('Prior state: \n', self.clients[connection_id].components)
+            print('Prior state: \n', self.sessions[connection_id].components)
 
-        client = self.clients[connection_id]
-        client.ws = ws
-        # todo: add try-catch to remove client on client-disconnect after timeout
-        client.send_state()  # TODO: can this be SSR'd instead?
-        await client.handle()
+        session = self.sessions[connection_id]
+        session.ws = ws
+        # todo: add try-catch to remove session on client-session-disconnect after timeout
+        session.send_state()  # TODO: can this be SSR'd instead?
+        await session.handle()
 
     async def serve(self):
         # Set the stop condition when receiving SIGTERM.

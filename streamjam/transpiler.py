@@ -93,7 +93,7 @@ def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List
         rel_imp_path = rel_parent / f'{imp_cls.__name__}.svelte'
         import_components.append(f"import {imp_cls.__name__} from './{rel_imp_path}'")
 
-    svelte_code = (cls.Client.__doc__ or '').replace('@\n', '', 1)
+    svelte_code = (cls.UI.__doc__ or '').replace('@\n', '', 1)
     script_tag_regex = r'<script[^>]*>([\s\S]*?)</script>'
     svelte_script_tag = re.search(script_tag_regex, svelte_code)
     svelte_html_css = re.sub(script_tag_regex, '', svelte_code)

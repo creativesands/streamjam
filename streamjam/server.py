@@ -187,7 +187,7 @@ class StreamJam:
         self.sessions: dict[str, SessionHandler] = {}
         self.component_map = get_components_in_project(name)
         self.pubsub = PubSub()
-        self.init_services(services)
+        self.init_services(services or {})
 
     def init_services(self, services: dict[str, ServiceConfig]):
         if 'SocketService' not in services:

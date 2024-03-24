@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import typing as tp
 from collections import defaultdict
 
@@ -54,7 +55,7 @@ class Component:
         cls.__prop_defaults__ = {}
         for name, ann_type in cls.__annotations__.items():
             default_value = cls.__dict__.get(name, ...)
-            if issubclass(ann_type, (Service, ServiceProxy)):
+            if inspect.isclass(ann_type) and issubclass(ann_type, (Service, ServiceProxy)):
                 cls.__services__[name] = default_value
             else:
                 cls.__prop_defaults__[name] = default_value

@@ -27,11 +27,9 @@ class PubSub:
 
     def publish(self, channel, topic, message, priority=1, rooms: list[str] = None, recipients: list[str] = None):
         rooms = rooms or []
-        all_recipients = set()
+        all_recipients = set(recipients or [])
         for room in rooms:
             all_recipients.update(self.room_subscriptions[channel, room])
-        if recipients is not None:
-            all_recipients.update(recipients)
         for sid in self.subscribers[channel][topic]:
             if all_recipients and sid not in all_recipients:
                 continue

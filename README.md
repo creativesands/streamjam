@@ -45,8 +45,10 @@ class Counter(Component):                       #  StreamJam Component definitio
 
 ### StreamJam VSCode Plugin
 StreamJam comes with a VSCode plugin that provides syntax highlighting and intellisense for
-Svelte code that is embedded within a streamjam component's python file.
+Svelte code that is embedded within a streamjam component's python file. This plugin depends 
+on the official Svelte VSCode Extension, so please install that prior to installing the following.
 
+- [Install Svelte Extension](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode)
 - [Install StreamJam Tools](https://marketplace.visualstudio.com/items?itemName=Creativesands.streamjam-tools)
 
 ---

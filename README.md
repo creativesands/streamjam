@@ -11,7 +11,7 @@ to develop modern, highly interactive and realtime web applications.
 
 - **Full-stack Components**: Build components that combine server-side logic with client-side UI, providing a unified development experience.
 - **Real-time Updates**: Create real-time, collaborative applications with seamless communication and state updates across multiple clients.
-- **Websocket-based RPC and Streaming**: Leverage the power of RPC over WebSockets to facilitate direct method invocation, bringing your web development experience closer to real programming. May REST, rest in peace.
+- **Websocket-based RPC and Streaming**: Leverage the power of RPC over WebSockets to facilitate direct method invocation, bringing your web development experience closer to real programming. The REST can rest in peace.
 - **Automatic State Synchronization**: Enjoy automatic state synchronization between the server and client, eliminating the need for explicit data-binding or state management code.
 - **Organically Scalable**: (WIP)
 

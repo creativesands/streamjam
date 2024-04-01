@@ -3,8 +3,8 @@ import inspect
 import typing as tp
 from collections import defaultdict
 
-from .base import ComponentEvent, final
 from .service import Service, ServiceProxy
+from .base import ComponentEvent, final, ServiceEvent
 
 if tp.TYPE_CHECKING:
     from .server import SessionHandler
@@ -32,18 +32,18 @@ class Component:
         self.__child_components__: tp.List[Component] = []
         self.__task_registry: set[asyncio.Task] = set()
         self.__service_event_handlers: dict[str, set] = defaultdict(set)  # event_name: {handler}
-        self.__message_queue__: 'asyncio.Queue[tuple[str, tp.Any]]' = asyncio.PriorityQueue()  # (topic_name, message)
+        self.__message_queue__: 'asyncio.Queue[ServiceEvent]' = asyncio.PriorityQueue()
         self._register_handlers()
         self.create_task(self.__message_receiver())
 
     async def __message_receiver(self):
         while True:
-            priority, (event_name, message) = await self.__message_queue__.get()
-            for handler in self.__service_event_handlers[event_name]:
+            event = await self.__message_queue__.get()
+            for handler in self.__service_event_handlers[event.name]:
                 if hasattr(handler, '$event_handler'):  # todo: not needed
                     self.create_task(handler())
                 else:
-                    self.create_task(handler(message))
+                    self.create_task(handler(event))
 
     def __init_subclass__(cls, **kwargs):
         cls.__has_server__ = kwargs.get('server', True)

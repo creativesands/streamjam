@@ -47,13 +47,11 @@ class Service(ServiceBase):
             name: str,
             data=None,
             priority: int = 1,
-            rooms: str | list[str] = None,
-            recipients: str | list[str] = None):
+            rooms: list[str] = None,
+            recipients: list[str] = None):
         self.__pubsub.publish(
             channel=f'$Service/{self.__name}',
-            topic=name,
-            message=ServiceEvent(name, self.__name, data),
-            priority=priority,
+            event=ServiceEvent(name, self.__name, data, priority),
             rooms=rooms,
             recipients=recipients
         )

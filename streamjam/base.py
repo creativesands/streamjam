@@ -1,5 +1,5 @@
 import typing as tp
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 if tp.TYPE_CHECKING:
     from .component import Component
@@ -12,11 +12,12 @@ class ComponentEvent:
     data: tp.Any
 
 
-@dataclass
+@dataclass(order=True)
 class ServiceEvent:
-    name: str
-    source: str
-    data: tp.Any
+    name: str = field(compare=False)
+    source: str = field(compare=False)
+    data: tp.Any = field(compare=False)
+    priority: int = 1
 
 
 @dataclass

@@ -2,7 +2,7 @@
 
 ![StreamJam Logo](docs/streamjam.svg)
 
-StreamJam is a structured and slightly opinionated framework that brings websocket-based 
+StreamJam is an ergonomic and slightly opinionated framework that brings websocket-based 
 Remote Procedure Call (RPC) architecture to web development. It enables you to create full-stack 
 stateful components that seamlessly bridge the gap between the frontend and backend, allowing you 
 to develop modern, highly interactive and realtime web applications.
@@ -13,7 +13,7 @@ to develop modern, highly interactive and realtime web applications.
 - **Real-time Updates**: Create real-time, collaborative applications with seamless communication and state updates across multiple clients.
 - **Websocket-based RPC and Streaming**: Leverage the power of RPC over WebSockets to facilitate direct method invocation, bringing your web development experience closer to real programming. May REST, rest in peace.
 - **Automatic State Synchronization**: Enjoy automatic state synchronization between the server and client, eliminating the need for explicit data-binding or state management code.
-- **Organically Scalable**: (WIP)
+- **Organically Scalable**: Offload expensive blocking tasks to StreamJam Services that can independently scale using multiprocess or multi-node strategies.
 
 ---
 ```python

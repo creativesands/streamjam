@@ -8,6 +8,8 @@ In-memory PubSub based async message passing.
 import asyncio
 from collections import defaultdict
 
+from .base import ServiceEvent
+
 
 class PubSub:
     def __init__(self):
@@ -25,16 +27,16 @@ class PubSub:
     def unsubscribe(self, sid, channel, topic):
         self.subscribers[channel][topic].discard(sid)
 
-    def publish(self, channel, topic, message, priority=1, rooms: list[str] = None, recipients: list[str] = None):
+    def publish(self, channel, event: ServiceEvent, rooms: list[str] = None, recipients: list[str] = None):
         rooms = rooms or []
         all_recipients = set(recipients or [])
         for room in rooms:
             all_recipients.update(self.room_subscriptions[channel, room])
-        for sid in self.subscribers[channel][topic]:
+        for sid in self.subscribers[channel][event.name]:
             if all_recipients and sid not in all_recipients:
                 continue
             if sid in self.message_queues:
-                self.message_queues[sid].put_nowait((priority, (topic, message)))
+                self.message_queues[sid].put_nowait(event)
 
     def join_room(self, sid, channel, room):
         self.room_subscriptions[channel, room].add(sid)

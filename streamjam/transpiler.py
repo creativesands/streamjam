@@ -37,19 +37,18 @@ def load_module(module_name, file_path):
 def load_package_module(file_path):
     """
     Load a module programmatically from a file path, respecting its package structure.
-
-    :param file_path: The file path to the module.
-    :return: The loaded module.
+    Adjusts Python path as necessary to ensure package recognition.
     """
     file_path = Path(file_path)
     if not file_path.exists():
         raise FileNotFoundError(f"No such file: {file_path}")
 
-    package_path = file_path.parent  # Directory of the module
+    root_package_path = file_path.parent  # Consider this as part of package
+    sys.path.insert(0, str(root_package_path.parent))  # Adjust Python path if necessary
 
     # Construct relative module name within the package
-    relative_module_path = file_path.relative_to(package_path.parent).with_suffix('')
-    relative_module_name = str(relative_module_path).replace('/', '.')
+    relative_module_path = file_path.relative_to(root_package_path.parent).with_suffix('')
+    relative_module_name = str(relative_module_path).replace(os.sep, '.')
     spec = spec_from_file_location(relative_module_name, file_path)
 
     if spec is None:

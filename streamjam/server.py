@@ -197,7 +197,7 @@ class StreamJam:
             self.service_executors[service_name] = AsyncServiceExecutor(service_config, service_name, self.pubsub)
 
     async def router(self, ws: websockets.WebSocketServerProtocol):
-        print('>>> Received new connection:', ws.path, ws.id, len(self.sessions))
+        print(f'>>> Received new connection. Path: {ws.path}, ID: {ws.id}, Total Con: {len(self.sessions)}')
 
         socket_service = self.service_executors['SocketService']
         connection_id = await socket_service.execute_method('connect', ws)
@@ -224,7 +224,11 @@ class StreamJam:
         # Set the stop condition when receiving SIGTERM.
         loop = asyncio.get_running_loop()
         stop = loop.create_future()
-        loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
+
+        try:
+            loop.add_signal_handler(signal.SIGINT, stop.set_result, None)
+        except NotImplementedError:
+            pass  # Not available on Windows.
 
         async with websockets.serve(self.router, self.host, self.port):
             print(f'Running StreamJam server on {self.addr!r}')

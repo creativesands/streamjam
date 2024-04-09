@@ -218,7 +218,7 @@ def build_project(base_path='.', output_path='.build'):
 
                     component_paths.append(dest_file.relative_to(components_dest))
                     print('Producing:', dest_file, '\n')
-                    with dest_file.open('w') as f:
+                    with dest_file.open('w', encoding='utf-8') as f:
                         f.write(transpiled_content)
                 else:
                     # Copy other files as is

@@ -27,6 +27,7 @@
         vite.config.js
 """
 
+import os
 import time
 from threading import Timer
 from cookiecutter import main
@@ -51,7 +52,7 @@ class DebouncedHandler(FileSystemEventHandler):
         self._timer = None
 
     def on_any_event(self, event):
-        if '/.build/' in event.src_path:
+        if f'{os.sep}.build{os.sep}' in event.src_path:
             return
         if '__pycache__' in event.src_path:
             return

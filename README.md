@@ -11,7 +11,7 @@ to develop modern, highly interactive and realtime web applications.
 
 - **Full-stack Components**: Build components that combine server-side logic with client-side UI, providing a unified development experience.
 - **Real-time Updates**: Create real-time, collaborative applications with seamless communication and state updates across multiple clients.
-- **Websocket-based RPC and Streaming**: Leverage the power of RPC over WebSockets to facilitate direct method invocation, bringing your web development experience closer to real programming. May REST, rest in peace.
+- **Websocket-based RPC and Streaming**: Leverage the power of RPC over WebSockets to facilitate direct method invocation, bringing your web development experience closer to real programming. The REST can rest in peace.
 - **Automatic State Synchronization**: Enjoy automatic state synchronization between the server and client, eliminating the need for explicit data-binding or state management code.
 - **Organically Scalable**: Offload expensive blocking tasks to StreamJam Services that can independently scale using multiprocess or multi-node strategies.
 
@@ -45,8 +45,10 @@ class Counter(Component):                       #  StreamJam Component definitio
 
 ### StreamJam VSCode Plugin
 StreamJam comes with a VSCode plugin that provides syntax highlighting and intellisense for
-Svelte code that is embedded within a streamjam component's python file.
+Svelte code that is embedded within a streamjam component's python file. This plugin depends 
+on the official Svelte VSCode Extension, so please install that prior to installing the following.
 
+- [Install Svelte Extension](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode)
 - [Install StreamJam Tools](https://marketplace.visualstudio.com/items?itemName=Creativesands.streamjam-tools)
 
 ---

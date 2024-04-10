@@ -34,6 +34,13 @@ def load_module(module_name, file_path):
     return module
 
 
+def find_project_root(start_path: Path) -> Path | None:
+    for parent in start_path.parents:
+        if (parent / '__root__.py').exists():
+            return parent.absolute()
+    return None
+
+
 def load_package_module(file_path):
     """
     Load a module programmatically from a file path, respecting its package structure.
@@ -43,12 +50,18 @@ def load_package_module(file_path):
     if not file_path.exists():
         raise FileNotFoundError(f"No such file: {file_path}")
 
-    root_package_path = file_path.parent  # Consider this as part of package
-    sys.path.insert(0, str(root_package_path.parent))  # Adjust Python path if necessary
+    # find project root
+    root_project_path = find_project_root(file_path)
+    if not root_project_path:
+        raise FileNotFoundError(f"Project root file: '__root__.py' not found!")
+    # add to sys.path in order to support relative import of modules
+    sys.path.insert(0, str(root_project_path.parent))
 
     # Construct relative module name within the package
-    relative_module_path = file_path.relative_to(root_package_path.parent).with_suffix('')
+    # Eg. ..services.socket -> <root>/services/socket
+    relative_module_path = file_path.absolute().relative_to(root_project_path.parent).with_suffix('')
     relative_module_name = str(relative_module_path).replace(os.sep, '.')
+    # print(f'Path DEBUG: {root_project_path=}, {relative_module_path=}, {relative_module_name=})')
     spec = spec_from_file_location(relative_module_name, file_path)
 
     if spec is None:

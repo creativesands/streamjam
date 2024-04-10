@@ -110,7 +110,7 @@ class SessionHandler:
             except websockets.exceptions.ConnectionClosedError:
                 print('Connection Closed. Draining messages to session client.')
             except websockets.WebSocketException as exc:
-                print('Websocket Exception', exc)
+                print(f'Websocket Exception. Draining messages to session client. Exception: {exc!r}')
 
     async def execute_service_method(self, future, service_name, method_name, args, kwargs):
         service_executor = self.service_executors[service_name]
@@ -118,7 +118,7 @@ class SessionHandler:
         future.set_result(result)
 
     def trigger_service_method(self, service_name, method_name, args, kwargs):
-        task_id = f'SERVICE/{service_name}/{method_name}@{time.time()}'
+        task_id = f'SERVICE/{service_name}/{method_name}@{time.time_ns()}'
         loop = asyncio.get_running_loop()
         future = loop.create_future()
         self.create_task(

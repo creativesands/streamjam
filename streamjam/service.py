@@ -37,6 +37,13 @@ class Service(ServiceBase):
         super().__init_subclass__(**kwargs)
         deny_final_method_override(cls, Service)
 
+    @staticmethod
+    @final
+    def concurrency_limit(fn, n: int | None = None):  # TODO: Implement this
+        # setattr(fn, 'concurrency_limit', n)
+        # return fn
+        raise NotImplementedError
+
     @classmethod
     def configure(cls, *args, **kwargs):
         return ServiceConfig(cls, args, kwargs)
@@ -185,8 +192,9 @@ class AsyncServiceExecutor(ServiceExecutor):
 
 
 class SocketService(Service):
-    def __init__(self, **kwargs):
+    def __init__(self, session_strategy: tp.Literal['path', 'connection_id'] = 'path', **kwargs):
         super().__init__(**kwargs)
+        self.session_strategy = session_strategy
         self.connections = {}
 
     async def connect(self, ws: websockets.WebSocketServerProtocol):
@@ -196,7 +204,10 @@ class SocketService(Service):
         return connection_id
 
     async def on_connect(self, ws: websockets.WebSocketServerProtocol) -> str:
-        return str(ws.id)
+        if self.session_strategy == 'path':
+            return ws.path
+        elif self.session_strategy == 'connection_id':
+            return str(ws.id)
 
     async def on_disconnect(self, ws):
         ...

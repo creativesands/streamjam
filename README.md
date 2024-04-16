@@ -1,6 +1,6 @@
 # StreamJam
 
-![StreamJam Logo](docs/streamjam.svg)
+![StreamJam Logo](docs/streamjam-full-logo.svg)
 
 StreamJam is an ergonomic and slightly opinionated framework that brings websocket-based 
 Remote Procedure Call (RPC) architecture to web development. It enables you to create full-stack 
@@ -9,11 +9,16 @@ to develop modern, highly interactive and realtime web applications.
 
 ## Features
 
-- **Full-stack Components**: Build components that combine server-side logic with client-side UI, providing a unified development experience.
-- **Real-time Updates**: Create real-time, collaborative applications with seamless communication and state updates across multiple clients.
-- **Websocket-based RPC and Streaming**: Leverage the power of RPC over WebSockets to facilitate direct method invocation, bringing your web development experience closer to real programming. The REST can rest in peace.
-- **Automatic State Synchronization**: Enjoy automatic state synchronization between the server and client, eliminating the need for explicit data-binding or state management code.
-- **Organically Scalable**: Offload expensive blocking tasks to StreamJam Services that can independently scale using multiprocess or multi-node strategies.
+- **Full-stack Components**: Build components that combine server-side logic with client-side UI, 
+  providing a unified development experience.
+- **Real-time Updates**: Create real-time, collaborative applications with seamless communication and state 
+  updates across multiple clients.
+- **Websocket-based RPC and Streaming**: Leverage the power of RPC over WebSockets to facilitate direct method 
+  invocation, bringing your web development experience closer to real programming. The REST can rest in peace.
+- **Automatic State Synchronization**: Enjoy automatic state synchronization between the server and client, 
+  eliminating the need for explicit data-binding or state management code.
+- **Organically Scalable**: Offload expensive blocking tasks to StreamJam Services that can independently scale 
+  using multiprocess or multi-node strategies.
 
 ---
 ```python
@@ -89,13 +94,15 @@ The following is the file structure created by `streamjam create` when making a 
 ```text
 project_home/
 ├── main.py
+├── __root__.py
 ├── components/
 │   └── root.py
 ├── public/
 │   └── streamjam.svg
 ├── package.json
 ├── requirements.txt
-│--------------------------
+│
+│
 ├── .build/
 │   ├── index.html
 │   ├── project.json
@@ -110,7 +117,7 @@ project_home/
 
 The contents of `.build` are created by `streamjam build` command. Notice that python files in 
 the components directory gets compiled to `.svelte` files if they contain a streamjam component 
-class definition. 
+class definition. `__root__.py` is a special sentinel file that marks the root of the project.
 
 
 ### Creating a new StreamJam component

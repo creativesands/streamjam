@@ -46,16 +46,16 @@ export class StreamJamClient {
 
     messageHandler(this_) {
         return function _messageHandler(e) {
-            console.debug('Received message:', e.data)
+            // console.debug('Received message:', e.data)
             const [reqId, topic, content] = JSON.parse(e.data)
             this_.devToolLogs.push({type: 'message-in', time: Date.now(), content: {reqId, topic, content}})
-            console.debug('Message from server:', reqId, topic, this_.messageHandlerRegistry)
+            // console.debug('Message from server:', reqId, topic, this_.messageHandlerRegistry)
 
             if (topic in this_.messageHandlerRegistry) {
-                console.debug('Calling handler for', topic, content)
+                // console.debug('Calling handler for', topic, content)
                 this_.messageHandlerRegistry[topic](content)
             } else {
-                console.debug('Topic not found:', topic)
+                // console.debug('Topic not found:', topic)
             }
 
             if (reqId in this_.promises) {

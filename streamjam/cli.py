@@ -1,6 +1,12 @@
+import logging
+
 from typer import Typer
 
 from .project import create, build
+
+
+logger = logging.getLogger('streamjam.cli')
+
 
 app = Typer()
 

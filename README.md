@@ -7,6 +7,11 @@ Remote Procedure Call (RPC) architecture to web development. It enables you to c
 stateful components that seamlessly bridge the gap between the frontend and backend, allowing you 
 to develop modern, highly interactive and realtime web applications.
 
+> StreamJam is an ergonomic, full-stack application framework based on asynchronous RPC.
+> Develop distributed web applications with the feel of developing native applications. 
+> Triggering an action on the server is simply an await away.
+
+
 ## Features
 
 - **Full-stack Components**: Build components that combine server-side logic with client-side UI, 

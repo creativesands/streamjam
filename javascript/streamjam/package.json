@@ -9,6 +9,7 @@
   "author": "Sandeep Sasi Kumar",
   "license": "MIT",
   "dependencies": {
-    "svelte": "^4.2.2"
+    "svelte": "^5.2.7",
+    "svelte-virtual-list": "^3.0.1"
   }
 }

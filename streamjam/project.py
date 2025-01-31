@@ -29,12 +29,16 @@
 
 import os
 import time
+import logging
 from threading import Timer
 from cookiecutter import main
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 from .transpiler import build_project
+
+
+logger = logging.getLogger('streamjam.project')
 
 
 project_template = "gh:creativesands/streamjam-project-template"
@@ -47,6 +51,10 @@ def create():
 
 class DebouncedHandler(FileSystemEventHandler):
     def __init__(self, callback, debounce_interval=1.0):
+        """
+        :param callback: function to be called when events have been debounced
+        :param debounce_interval: time in seconds to wait before calling the callback
+        """
         self.callback = callback
         self.debounce_interval = debounce_interval
         self._timer = None
@@ -61,7 +69,7 @@ class DebouncedHandler(FileSystemEventHandler):
         if event.is_directory:
             return
 
-        print(f'Change triggered by: {event.src_path!r}')
+        logger.info(f'Change triggered by: {event.src_path!r}')
 
         if not event.is_directory:
             if self._timer is not None:

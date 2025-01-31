@@ -4,12 +4,16 @@ import sys
 import json
 import shutil
 import inspect
+import logging
 import typing as tp
 from pathlib import Path
 from datetime import datetime
 from importlib.util import spec_from_file_location, module_from_spec
 
 from .component import Component
+
+
+logger = logging.getLogger('streamjam.transpiler')
 
 
 """
@@ -35,6 +39,18 @@ def load_module(module_name, file_path):
 
 
 def find_project_root(start_path: Path) -> Path | None:
+    """
+    Find the project root directory.
+
+    Given a file path, traverse up the directory tree until a directory
+    containing a '__root__.py' file is found. This file is used to mark the
+    root of a project.
+
+    If no project root is found, return None.
+
+    :param start_path: The starting path to search for the project root.
+    :return: The project root directory or None.
+    """
     for parent in start_path.parents:
         if (parent / '__root__.py').exists():
             return parent.absolute()
@@ -74,6 +90,27 @@ def load_package_module(file_path):
 
 
 def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List[tp.Type[Component]]):
+    """
+    Transpile a StreamJam component into a Svelte component.
+
+    This function is responsible for taking a StreamJam component class definition and converting it
+    into a Svelte component. This involves generating the necessary Svelte code for the component's
+    UI, store, and RPC methods.
+
+    Parameters
+    ----------
+    cls : Type[Component]
+        The StreamJam component class definition.
+    cls_path : str
+        The file path of the component's class definition.
+    imports : List[Type[Component]]
+        A list of other StreamJam component classes that are imported by the current component.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the name of the component and the generated Svelte code as a string.
+    """
     prop_dict = []
     prop_init = []
     store_init = []
@@ -133,6 +170,22 @@ def transpile_component(cls: tp.Type[Component], cls_path: str, imports: tp.List
 
 
 def transpile_streamjam_to_svelte(file_path):
+    """
+    Transpile a StreamJam component definition file from Python to Svelte.
+
+    This function takes a file path of a StreamJam component definition file,
+    and transpiles it into a Svelte component using `transpile_component`.
+
+    Parameters
+    ----------
+    file_path : Path
+        The file path of the StreamJam component definition file.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the name of the component and the generated Svelte code as a string.
+    """
     sys.path.append(os.path.dirname(file_path))
     module = load_package_module(file_path=file_path)
     imported_components = []
@@ -158,6 +211,23 @@ def create_component_index_js(component_paths: tp.List[Path]):
 
 
 def get_components_in_project(base_path='.'):
+    """
+    Finds all StreamJam components in a given project directory.
+
+    Walks the directory tree rooted at `base_path` and looks for Python modules
+    containing StreamJam component classes. The name of each class is used as
+    the key in the returned dictionary, and the class itself is the value.
+
+    Parameters
+    ----------
+    base_path : Path
+        The root directory of the project.
+
+    Returns
+    -------
+    dict
+        A dictionary mapping component class names to the class definitions.
+    """
     base_path = Path(base_path)
     components_src = base_path / 'components'
     sys.path.append(str(base_path.absolute()))
@@ -165,7 +235,7 @@ def get_components_in_project(base_path='.'):
     components = {}
     for root, dirs, files in os.walk(components_src):
         if root.startswith('__'):
-            print('ignoring', root)
+            logger.info('ignoring', root)
             continue
 
         root_path = Path(root)
@@ -185,6 +255,35 @@ def get_components_in_project(base_path='.'):
 
 
 def build_project(base_path='.', output_path='.build'):
+    """
+    Builds a StreamJam project.
+
+    This function takes a StreamJam project directory as input and outputs a
+    build directory containing the transpiled components and other files.
+
+    The following steps are taken:
+
+    1. Copy the contents of the `/public` folder to the build directory.
+    2. Walk the `/components` directory and transpile each Python file that
+       contains a StreamJam component class definition. The transpiled Svelte
+       code is saved as a `.svelte` file in the build directory with the same
+       relative path as the original Python file.
+    3. Create an `index.js` file in the build directory that exports all the
+       transpiled components.
+
+    Parameters
+    ----------
+    base_path : Path
+        The root directory of the project.
+    output_path : Path
+        The directory where the build should be written.
+
+    Notes
+    -----
+    This function does not currently support transpiling components that depend
+    on other components. It is recommended to use a single `components/` folder
+    for all components in the project.
+    """
     print('Building project...')
     base_path = Path(base_path)
     output_path = Path(output_path)
@@ -204,7 +303,7 @@ def build_project(base_path='.', output_path='.build'):
     if components_src.exists():
         for root, dirs, files in os.walk(components_src):
             if root.startswith('__'):
-                print('ignoring', root)
+                logger.info('ignoring', root)
                 continue
 
             root_path = Path(root)
@@ -219,7 +318,7 @@ def build_project(base_path='.', output_path='.build'):
                 if file.startswith('__'):
                     continue
                 if file.endswith('.py'):
-                    print(f'[{datetime.now().strftime("%H:%M:%S")}] >>> Transpiling: ', file)
+                    logger.info(f'[{datetime.now().strftime("%H:%M:%S")}] >>> Transpiling: ', file)
                     # Transpile Python files and save as .svelte
                     did_transpile = transpile_streamjam_to_svelte(src_file)
                     if did_transpile:
@@ -230,7 +329,7 @@ def build_project(base_path='.', output_path='.build'):
                     dest_file = dest_path / (comp_name + '.svelte')
 
                     component_paths.append(dest_file.relative_to(components_dest))
-                    print('Producing:', dest_file, '\n')
+                    logger.info('Producing:', dest_file, '\n')
                     with dest_file.open('w', encoding='utf-8') as f:
                         f.write(transpiled_content)
                 else:

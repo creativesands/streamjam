@@ -18,8 +18,22 @@ from .component import (
 )
 
 
+__all__ = [
+    "StreamJam",
+    "Service",
+    "ServiceClient",
+    "SocketService",
+    "ComponentEvent",
+    "ServiceEvent",
+    "Component"
+]
+
+
 """
 Todos:
+    - [ ] component __post_init__ -> init
+    - [ ] component on_connect so that every time it is re/connected it can update state if neededftp
+    - [ ] rewrite server as a service so that other services can access it 
     - [ ] client rpc-response handler
     - [ ] setup logging
     - [ ] rpc generator in FE if backend is async generator

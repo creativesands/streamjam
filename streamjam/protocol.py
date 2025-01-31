@@ -1,4 +1,4 @@
-import json
+import orjson as json
 import typing as tp
 from dataclasses import dataclass
 
@@ -12,4 +12,4 @@ class Message:
     def serialize(self):
         if isinstance(self.topic, tuple):
             self.topic = '>'.join(self.topic)
-        return json.dumps((self.req_id, self.topic, self.content))
+        return json.dumps((self.req_id, self.topic, self.content)).decode('utf-8')

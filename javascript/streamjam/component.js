@@ -23,7 +23,7 @@ export class Component {
         const topic = ['store-value', this.id, storeName].join('>')
         this.client.registerMessageHandler(topic, (value) => {
             set(value)
-            console.debug('Setting new value for', storeName, value)
+            // console.debug('Setting new value for', storeName, value)
         })
         this.messageHandlerTopics.push(topic)
 

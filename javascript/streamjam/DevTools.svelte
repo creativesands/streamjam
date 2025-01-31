@@ -1,15 +1,106 @@
 <script>
-    import { getContext } from "svelte"
-    import { autoscroll } from "./utils"
+    import { getContext, onDestroy, onMount } from "svelte"
+    import VirtualList from 'svelte-virtual-list';
 
     const client = getContext('streamjam')
-
     window.dev_client = client
 
-    let isOpen = false
-    let activeTab = 'Network'
-    let tabs = ['Components', 'Network', 'Memory', 'Server']
-    let networkLogs = client.devToolLogs
+    const MAX_LOGS = 1000; // Maximum number of logs to keep
+    const RETENTION_HOURS = 1; // Keep logs from last hour by default
+
+    let isOpen = $state(false)
+    let isPaused = $state(false)
+    let activeTab = $state('Network')
+    let tabs = $state.raw(['Components', 'Network', 'Memory', 'Server'])
+    let networkLogs = $state(client.devToolLogs)
+    let virtualList = $state(null)
+    let filterText = $state('')
+    let listKey = $state(0)
+    let showScrollToBottom = $state(false)
+    let containerRef = $state(null);
+    let messageFilter = $state('all'); // 'all', 'sent', 'recv'
+
+    // Global keyboard shortcut for widget toggle
+    const handleGlobalKeydown = (e) => {
+        if (e.code === 'Period' && e.metaKey && e.altKey) {
+            e.preventDefault();
+            isOpen = !isOpen;
+        }
+    };
+
+    onMount(() => {
+        window.addEventListener('keydown', handleGlobalKeydown);
+    });
+
+    onDestroy(() => {
+        window.removeEventListener('keydown', handleGlobalKeydown);
+    });
+
+    // Keyboard shortcuts
+    $effect(() => {
+        if (!isOpen) return;
+        
+        const handleKeydown = (e) => {
+            if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                document.querySelector('.toolbar input[type="text"]')?.focus();
+            } else if (e.key === 'c' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                clearLogs();
+            } else if (e.key === 'p' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                isPaused = !isPaused;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeydown);
+        return () => window.removeEventListener('keydown', handleKeydown);
+    });
+
+    let filteredLogs = $derived(
+        filterText || messageFilter !== 'all'
+            ? networkLogs.filter(log => {
+                const matchesFilter = !filterText || 
+                    JSON.stringify(log.content).toLowerCase().includes(filterText.toLowerCase());
+                const matchesType = messageFilter === 'all' || 
+                    (messageFilter === 'sent' && log.type === 'message-out') ||
+                    (messageFilter === 'recv' && log.type === 'message-in');
+                return matchesFilter && matchesType;
+            })
+            : networkLogs
+    );
+
+    // Keep track of which logs are open
+    let openStates = $state(new Map());
+
+    function clearLogs() {
+        client.devToolLogs = [];
+        networkLogs = [];
+        openStates.clear();
+        listKey++;
+    }
+
+    function pruneOldLogs() {
+        const cutoff = Date.now() - (RETENTION_HOURS * 60 * 60 * 1000);
+        networkLogs = networkLogs.filter(log => log.time > cutoff);
+        
+        // Also prune if too many logs
+        if (networkLogs.length > MAX_LOGS) {
+            networkLogs = networkLogs.slice(-MAX_LOGS);
+        }
+    }
+
+    function scrollToBottom() {
+        if (containerRef) {
+            containerRef.scrollTop = containerRef.scrollHeight;
+        }
+    }
+
+    function handleScroll(e) {
+        const target = e.target;
+        const atBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 50;
+        showScrollToBottom = !atBottom && networkLogs.length > 0;
+    }
 
     function formatEpochTime(epochTime, showDate=false) {
         const date = new Date(epochTime);
@@ -30,24 +121,129 @@
         }
     }
 
-    setInterval(() => {
-        networkLogs = client.devToolLogs
-    }, 100)
+    $effect(() => {
+        if (!isPaused) {
+            const interval = setInterval(() => {
+                // Preserve open states when updating logs
+                const newLogs = client.devToolLogs.map(log => ({
+                    ...log,
+                    _open: openStates.get(log.time) || false
+                }));
+                networkLogs = newLogs;
+                // pruneOldLogs();
+                
+                // Auto scroll to bottom after update
+                if (!showScrollToBottom) {
+                    scrollToBottom();
+                }
+            }, 100);
+
+            return () => clearInterval(interval);
+        }
+    });
+
+    function toggleLogOpen(log) {
+        const newState = !!!log._open;
+        log._open = newState;
+        if (newState) {
+            openStates.set(log.time, true);
+        } else {
+            openStates.delete(log.time);
+        }
+    }
 </script>
 
-
-<div class="container" use:autoscroll class:open={isOpen} on:click={() => {isOpen = true}}>
+<div class="container" 
+    class:open={isOpen} 
+    onclick={() => {isOpen = true}}
+    onkeydown={(e) => {if (e.key === 'Enter') isOpen = true}}
+    role="button"
+    tabindex="0">
     <div class="header">
         <div class="logo"></div>
         {#if isOpen}
             <div class="tab-headers">
                 {#each tabs as tab}
-                    <div class="tab-name"  data-tab-name="{tab}" class:active={activeTab === tab}>{tab}</div>
+                    <div class="tab-name" 
+                        data-tab-name="{tab}" 
+                        class:active={activeTab === tab}
+                        onclick={() => activeTab = tab}
+                        role="tab"
+                        tabindex="0"
+                        onkeydown={(e) => {if (e.key === 'Enter') activeTab = tab}}
+                    >{tab}</div>
                 {/each}
             </div>
             <div class="toolbar">
-                <input type="text" placeholder="Filter Components">
-                <button on:click|stopPropagation={() => {isOpen = !isOpen}}>x</button>
+                <div class="type-filters">
+                    <label class="type-filter">
+                        <input 
+                            type="radio" 
+                            name="message-type"
+                            value="all"
+                            checked={messageFilter === 'all'}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                messageFilter = 'all';
+                            }}
+                        >
+                        <span><span class="recv">↓</span><span class="send">↑</span> All</span>
+                    </label>
+                    <label class="type-filter">
+                        <input 
+                            type="radio" 
+                            name="message-type"
+                            value="sent"
+                            checked={messageFilter === 'sent'}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                messageFilter = 'sent';
+                            }}
+                        >
+                        <span><span class="send">↑</span> Sent</span>
+                    </label>
+                    <label class="type-filter">
+                        <input 
+                            type="radio" 
+                            name="message-type"
+                            value="recv"
+                            checked={messageFilter === 'recv'}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                messageFilter = 'recv';
+                            }}
+                        >
+                        <span><span class="recv">↓</span> Recv</span>
+                    </label>
+                </div>
+                <input 
+                    type="text" 
+                    placeholder="Filter messages (⌘K)"
+                    bind:value={filterText}
+                    onclick={(e) => e.stopPropagation()}
+                >
+                <button class="icon-button" onclick={(e) => {
+                    e.stopPropagation();
+                    clearLogs();
+                }} title="Clear logs (⌘C)">
+                    🗑️
+                </button>
+                <button class="icon-button" class:paused={isPaused} onclick={(e) => {
+                    e.stopPropagation();
+                    isPaused = !isPaused;
+                }} title={isPaused ? "Resume (⌘P)" : "Pause (⌘P)"}>
+                    {#if isPaused}
+                        ▶
+                    {:else}
+                        ⏸
+                    {/if}
+                </button>
+                <button class="icon-button" onclick={(e) => {
+                    e.stopPropagation();
+                    isOpen = !isOpen;
+                }} title="Close (⌘⌥.)">
+                    ✕
+                </button>
             </div>
         {/if}
     </div>
@@ -55,53 +251,75 @@
         <div class="tab-container">
             {#if activeTab === 'Network'}
                 <div class="tab-content">
-                    <table class="network-table">
-                        <colgroup>
-                            <col class="time">
-                            <col class="network-type">
-                            <col class="component">
-                            <col class="message">
-                        </colgroup>
-                        <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th class="network-type"><span class="recv">↓</span> / <span class="send">↑</span></th>
-                            <th>Component</th>
-                            <th>Message</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {#each networkLogs as log}
+                    <div class="table-container">
+                        <table class="network-table">
+                            <colgroup>
+                                <col class="time">
+                                <col class="network-type">
+                                <col class="component">
+                                <col class="message">
+                            </colgroup>
+                            <thead>
                             <tr>
-                                <td>{formatEpochTime(log.time)}</td>
-                                <td class="network-type">
-                                    {#if log.type === 'message-in'}
-                                        <span class="recv">↓</span>
-                                    {:else if log.type === 'message-out'}
-                                        <span class="send">↑</span>
-                                    {/if}
-                                </td>
-                                <td>Root</td>
-                                <td class="message-content">
-                                    <pre class:open={log?._open === true} on:click={() => {log._open = !!!log._open}}>{JSON.stringify(log.content, null, 2)}</pre>
-                                </td>
+                                <th>Time</th>
+                                <th class="network-type"><span class="recv">↓</span> / <span class="send">↑</span></th>
+                                <th>Component</th>
+                                <th>Message</th>
                             </tr>
-                        {/each}
-                        </tbody>
-                    </table>
+                            </thead>
+                        </table>
+                        <div class="virtual-list-container" 
+                            bind:this={containerRef}
+                            onscroll={handleScroll}>
+                            <VirtualList 
+                                bind:this={virtualList}
+                                items={filteredLogs} 
+                                key={listKey}
+                                overscan={10}
+                                let:item={log}>
+                                <div class="virtual-row">
+                                    <div class="col time" title={log.time}>{formatEpochTime(log.time)}</div>
+                                    <div class="col network-type">
+                                        {#if log.type === 'message-in'}
+                                            <span class="recv">↓</span>
+                                        {:else if log.type === 'message-out'}
+                                            <span class="send">↑</span>
+                                        {/if}
+                                    </div>
+                                    <div class="col component">Root</div>
+                                    <div class="col message">
+                                        <button 
+                                            class:open={log?._open === true}
+                                            onclick={() => toggleLogOpen(log)}
+                                            onkeydown={(e) => {if (e.key === 'Enter') toggleLogOpen(log)}}
+                                            tabindex="0">
+                                            <pre>{JSON.stringify(log.content, null, 2)}</pre>
+                                        </button>
+                                    </div>
+                                </div>
+                            </VirtualList>
+                            {#if showScrollToBottom}
+                                <button 
+                                    class="scroll-to-bottom"
+                                    onclick={scrollToBottom}
+                                    title="Scroll to bottom">
+                                    ↓
+                                </button>
+                            {/if}
+                        </div>
+                    </div>
                 </div>
             {:else}
-                <div class="tab-content empty">Coming Soon...</div>
+                <div class="tab-content empty flex justify-center items-center">Coming Soon...</div>
             {/if}
         </div>
     {/if}
 </div>
 
-
 <style>
     .container {
         display: flex;
-        position: absolute;
+        position: fixed;
         bottom: 20px;
         left: calc(100% - 60px);
         width: 40px;
@@ -109,12 +327,14 @@
         border-radius: 40px;
         cursor: pointer;
         transition: all .3s ease;
-        background-color: #000000;
+        background-color: #060606;
+        border: 1px solid #252525;
         box-shadow: none;
         justify-content: center;
         flex-direction: column;
         overflow: auto;
         color: rgb(153, 153, 153);
+        z-index: 1000;
     }
 
     .container:hover {
@@ -134,6 +354,9 @@
         border-radius: 8px;
         box-sizing: border-box;
         cursor: auto;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
 
     .header {
@@ -167,23 +390,27 @@
     .toolbar {
         display: flex;
         gap: 10px;
+        align-items: center;
     }
 
     .toolbar input {
-        background: #333333;
+        background: #121212;
         color: inherit;
         outline: none;
         border: 1px solid #202020;
         border-radius: 5px;
-        padding: 2px 4px;
+        height: 24px;
+        padding: 0 8px;
+        min-width: 150px;
+        font-size: 12px;
     }
 
     .toolbar button {
         background: #333333;
         border: 1px solid #202020;
         border-radius: 5px;
-        font-size: 12px;
-        padding: 3px 8px;
+        color: inherit;
+        cursor: pointer;
     }
 
     .tab-headers {
@@ -232,7 +459,7 @@
         border-bottom: 1px solid #202020;
     }
 
-    col.time { width: 100px; }
+    col.time { width: 150px; }
     col.network-type { width: 50px; }
     col.component { width: 200px; }
     col.message {}
@@ -252,18 +479,33 @@
         color: white;
     }
 
+    .message-content button {
+        width: 100%;
+        background: none;
+        border: none;
+        color: inherit;
+        font: inherit;
+        padding: 0;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .message-content button:hover {
+        color: white;
+    }
+
+    .message-content button.open pre {
+        white-space: pre-wrap;
+        overflow: auto;
+    }
+
     pre {
         font-family: monospace;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        margin: 0; /* Remove default margin */
-        max-width: 100%; /* Ensure it doesn't overflow the td */
-    }
-
-    pre.open {
-        white-space: pre-wrap; /* Wrap text */
-        overflow: auto; /* Add scrollbars if needed */
+        margin: 0;
+        max-width: 100%;
     }
 
     span.send {
@@ -272,5 +514,233 @@
 
     span.recv {
         color: #7527E9;
+    }
+
+    .virtual-list-container {
+        height: 300px;
+        overflow-y: auto !important;
+        overflow-x: hidden;
+    }
+
+    .virtual-row {
+        display: flex;
+        border-bottom: 1px solid #202020;
+        font-size: 12px;
+        min-height: 25px;
+        height: auto;
+    }
+
+    .virtual-row .col {
+        padding: 2px 3px;
+        border-right: 1px solid #202020;
+        overflow: hidden;
+        min-height: 25px;
+        height: auto;
+        display: flex;
+        align-items: center;
+    }
+
+    .virtual-row .col.time { 
+        width: 150px;
+        flex-shrink: 0;
+    }
+    
+    .virtual-row .col.network-type { 
+        width: 50px;
+        flex-shrink: 0;
+        justify-content: center;
+        font-weight: bolder;
+    }
+    
+    .virtual-row .col.component { 
+        width: 200px;
+        flex-shrink: 0;
+    }
+    
+    .virtual-row .col.message {
+        flex-grow: 1;
+        height: auto;
+        overflow: visible;
+    }
+
+    .virtual-row .col.message button {
+        width: 100%;
+        height: auto;
+        min-height: 25px;
+        background: none;
+        border: none;
+        color: inherit;
+        font: inherit;
+        padding: 0;
+        text-align: left;
+        cursor: pointer;
+        overflow: visible;
+        display: flex;
+        align-items: center;
+    }
+
+    .virtual-row .col.message button:hover {
+        color: white;
+    }
+
+    .virtual-row .col.message pre {
+        font-family: monospace;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin: 0;
+        max-width: 100%;
+        font-size: 11px;
+        height: auto;
+        flex: 1;
+    }
+
+    .virtual-row .col.message button.open pre {
+        white-space: pre-wrap;
+        overflow: visible;
+        height: auto;
+    }
+
+    /* Remove these as they're now redundant */
+    .message-content,
+    .message-content button,
+    .message-content button:hover,
+    .message-content button.open pre {
+        display: none;
+    }
+
+    .virtual-row:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .table-container {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .network-table {
+        flex-shrink: 0;
+    }
+
+    .virtual-list-container {
+        flex-grow: 1;
+        overflow: hidden;
+    }
+
+    .icon-button {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        padding: 0;
+        background: #060606;
+        opacity: 0.5;
+        transition: opacity 0.2s;
+    }
+
+    .icon-button:hover {
+        opacity: 0.8;
+    }
+
+    .icon-button.selected {
+        opacity: 1;
+    }
+
+    .icon-button.selected:hover {
+        opacity: 0.8;
+    }
+
+    /* Pause button styles */
+    button.icon-button.paused {
+        background: #444;
+        opacity: 1;
+    }
+
+    button.icon-button.paused:hover {
+        opacity: 0.8;
+    }
+
+    .tab-container {
+        flex-grow: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .tab-content {
+        flex-grow: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .type-filters {
+        display: flex;
+        gap: 1em;
+        align-items: center;
+        border: 1px solid #232323;
+        padding: 0 .5em;
+        border-radius: 4px;
+        height: 24px;
+    }
+
+    .type-filter {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        cursor: pointer;
+    }
+
+    .type-filter input[type="radio"] {
+        margin: 0;
+        cursor: pointer;
+        min-width: auto;
+    }
+
+    .type-filter span {
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .scroll-to-bottom {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        background: #333;
+        border: 1px solid #202020;
+        color: inherit;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 16px;
+        opacity: 0.8;
+        transition: opacity 0.2s;
+    }
+
+    .scroll-to-bottom:hover {
+        opacity: 1;
+        background: #444;
+    }
+
+    .tab-name {
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+
+    .tab-name:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .virtual-list-container {
+        position: relative;
     }
 </style>
